@@ -1,0 +1,2 @@
+campaigns/dungeon_of_the_mad_mage/dotmm_sessions/raw_audio/**/*.zip filter=lfs diff=lfs merge=lfs -text
+campaigns/dungeon_of_the_mad_mage/dotmm_sessions/raw_audio/**/*.dat filter=lfs diff=lfs merge=lfs -text

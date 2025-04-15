@@ -1,0 +1,1 @@
+# Placeholder: stage1_transcribe script

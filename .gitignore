@@ -1,0 +1,34 @@
+# LoreBot Git Ignore List
+
+# Audio + temp files
+**/raw_audio/
+**/chunks/
+**/merged/
+*.aac
+*.flac
+*.mp3
+*.zip
+*.log
+
+# Jupyter/Colab notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Mac/Windows trash
+.DS_Store
+Thumbs.db
+
+# Env files / credentials
+.env
+*.key
+*.pem
+
+# VS Code settings (optional)
+.vscode/
+
+# Notebooks or temp AI staging
+notebooklm_ready/

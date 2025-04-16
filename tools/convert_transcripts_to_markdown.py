@@ -12,8 +12,22 @@ def convert_json_to_markdown(json_file):
     base_name = json_file.stem
     md_file = OUTPUT_DIR / f"{base_name}.md"
 
+    frontmatter = f"""---
+session: experimental_test_{base_name}
+campaign: experimental
+location: Unknown
+characters: []
+npcs: []
+tags: [test, transcription]
+tone: neutral
+summary: |
+  Placeholder summary. Replace this after review.
+---
+
+"""
+
     with open(md_file, "w", encoding="utf-8") as md:
-        md.write(f"# Transcript: {base_name}\n\n")
+        md.write(frontmatter)
         if "text" in data:
             md.write(data["text"])
         elif "error" in data:

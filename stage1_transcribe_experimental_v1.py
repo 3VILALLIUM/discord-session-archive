@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from logging.handlers import RotatingFileHandler
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -52,12 +52,17 @@ def transcribe_chunk(chunk_path, chunk_index):
                 response_format="verbose_json"
             )
         offset = chunk_index * (CHUNK_LENGTH_MS / 1000)
-        for segment in response.segments:
-            segment["start"] += offset
-            segment["end"] += offset
+        segments = [
+            {
+                "start": s.start + offset,
+                "end": s.end + offset,
+                "text": s.text
+            }
+            for s in response.segments
+        ]
         return {
             "chunk_file": chunk_path.name,
-            "segments": response.segments
+            "segments": segments
         }
     except Exception as e:
         logging.error(f"Error transcribing {chunk_path.name}: {e}")

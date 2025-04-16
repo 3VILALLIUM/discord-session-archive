@@ -11,10 +11,10 @@ __version__ = "1.0.0"
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-RAW_AUDIO_DIR = r"./raw_audio"
-CHUNK_DIR = r"./chunks"
-TRANSCRIPT_DIR = r"./transcripts"
-LOG_FILE = "stage1_transcribe.log"
+RAW_AUDIO_DIR = r"./campaigns/the_fold/raw_audio"
+CHUNK_DIR = r"./campaigns/the_fold/chunks"
+TRANSCRIPT_DIR = r"./campaigns/the_fold/transcripts"
+LOG_FILE = "stage1_transcribe_the_fold.log"
 
 CHUNK_LENGTH_MS = 10 * 60 * 1000
 SUPPORTED_EXTENSIONS = [".aac", ".mp3", ".wav", ".m4a", ".flac"]

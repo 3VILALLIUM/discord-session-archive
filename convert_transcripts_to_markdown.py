@@ -1,123 +1,97 @@
 import json
-import re
 import logging
 from pathlib import Path
-from datetime import timedelta
 
-# Configure logging
+# Directories
+TRANSCRIPT_DIR = Path("./campaigns/experimental/transcripts")
+OUTPUT_DIR = Path("./campaigns/experimental/output")
+
+# Logging Configuration
 logging.basicConfig(
-    filename="tools/convert_transcripts_to_markdown.log",
-    level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    filename="transcript_to_md.log",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s]: %(message)s",
 )
 
-TRANSCRIPT_DIR = Path("campaigns/experimental/transcripts")
-OUTPUT_DIR = Path("campaigns/experimental/output")
-INFO_FILE = Path("campaigns/experimental/raw_audio/info.txt")
+logging.info("Markdown merge + conversion started")
+
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-def format_timestamp(seconds):
-    return str(timedelta(seconds=round(seconds)))
+json_files = sorted(TRANSCRIPT_DIR.glob("*.json"))
 
-def extract_speaker_name(filename):
-    base = Path(filename).stem
-    parts = base.split("_chunk_")[0].split("-")
-    return parts[1] if len(parts) > 1 else "unknown"
+if not json_files:
+    logging.warning(f"No JSON transcripts found in {TRANSCRIPT_DIR}")
+    print("No JSON transcripts found.")
+    exit()
 
-def parse_info_file(info_path):
-    metadata = {
-        "session_id": "experimental_test",
-        "session_title": "Untitled",
-        "dm": "Unknown",
-        "tags": [],
-        "summary": "Placeholder summary. Replace this after review.",
-        "exclude_from": []
-    }
+# Define a single output Markdown file
+combined_md_file = OUTPUT_DIR / "experimental_combined_transcript.md"
 
-    if not info_path.exists():
-        logging.warning("info.txt not found, using defaults.")
-        return metadata
+# Start by building the YAML front matter for the combined transcript
+# Adjust these metadata fields as needed
+md_content = [
+    "---",
+    "session: experimental_combined",
+    "campaign: experimental",
+    "location: Unknown",
+    "characters: []",
+    "npcs: []",
+    "tags: [test, transcription]",
+    "tone: neutral",
+    "summary: |",
+    "  Placeholder summary for merged transcript. Replace/update after review.",
+    "---\n",
+]
 
-    content = info_path.read_text(encoding="utf-8")
+all_segments_found = False
 
-    session_id = re.search(r"SESSION_ID:\s*(.+)", content)
-    session_title = re.search(r"SESSION_TITLE:\s*(.+)", content)
-    dm = re.search(r"DM:\s*(.+)", content)
-    tags = re.findall(r"SESSION_TAGS:\s*(.+)", content)
-    exclude = re.findall(r"EXCLUDE_FROM:\s*(.+)", content)
-    summary_match = re.search(r"NOTES:\s*(.+)", content, re.DOTALL)
-
-    if session_id: metadata["session_id"] = session_id.group(1).strip()
-    if session_title: metadata["session_title"] = session_title.group(1).strip()
-    if dm: metadata["dm"] = dm.group(1).strip()
-    if tags: metadata["tags"] = [tag.strip() for tag in tags[0].split(",")]
-    if exclude: metadata["exclude_from"] = [x.strip() for x in exclude[0].split(",")]
-    if summary_match: metadata["summary"] = summary_match.group(1).strip()
-
-    logging.debug(f"Parsed info.txt metadata: {metadata}")
-    return metadata
-
-def convert_json_to_markdown(json_file, meta):
+# Process each JSON file, appending its segments
+for json_file in json_files:
     try:
-        with open(json_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        with open(json_file, encoding="utf-8") as jf:
+            transcript = json.load(jf)
+        
+        segments = transcript.get("segments", [])
 
-        logging.debug(f"Loaded {json_file.name}, keys: {list(data.keys())}")
+        # If this file has segments, append them to the combined markdown
+        if segments:
+            all_segments_found = True
+            # Optional: Provide a small heading for each file’s content
+            md_content.append(f"## Source file: {json_file.name}\n")
+            
+            # Append each segment
+            for segment in segments:
+                start_time = segment.get("start", "unknown")
+                # Use the JSON filename stem (minus extension) for speaker
+                speaker = json_file.stem.split("_")[0]
+                text = segment.get("text", "[NO TEXT FOUND]").strip()
+                
+                # Format time as float if it’s numeric
+                try:
+                    start_time = f"{float(start_time):.2f}s"
+                except (TypeError, ValueError):
+                    # keep as 'unknown' if conversion fails
+                    pass
+                
+                md_content.append(f"**[{start_time} - {speaker}]** {text}\n")
 
-        speaker = extract_speaker_name(data.get("chunk_file", json_file.name))
-        base_name = json_file.stem
-        md_file = OUTPUT_DIR / f"{base_name}.md"
+        else:
+            logging.warning(f"No segments found in {json_file.name}")
+            md_content.append(f"*No transcript segments found for {json_file.name}.*\n")
 
-        frontmatter = f"""---
-session: {meta['session_id']}_{base_name}
-title: {meta['session_title']}
-campaign: experimental
-dm: {meta['dm']}
-location: Unknown
-characters: []
-npcs: []
-tags: {meta['tags']}
-tone: neutral
-summary: |
-  {meta['summary']}
----
-
-"""
-
-        with open(md_file, "w", encoding="utf-8") as md:
-            md.write(frontmatter)
-
-            segments = data.get("segments", None)
-
-            if isinstance(segments, list) and segments:
-                for seg in segments:
-                    try:
-                        start = format_timestamp(seg["start"])
-                        end = format_timestamp(seg["end"])
-                        line = f"**[{start}–{end}] {speaker}:** {seg['text'].strip()}\n\n"
-                        md.write(line)
-                    except Exception as e:
-                        logging.error(f"Error writing segment in {json_file.name}: {e}")
-            elif "error" in data:
-                md.write(f"**Error during transcription:** {data['error']}\n")
-            else:
-                logging.warning(f"No segments or error field found in {json_file.name}")
-                md.write("*No transcript or error message found.*\n")
-
-        logging.info(f"✓ Converted {json_file.name} -> {md_file.name}")
+        logging.info(f"Merged {json_file.name} into combined transcript")
 
     except Exception as e:
-        logging.error(f"Failed to convert {json_file.name}: {e}")
+        logging.error(f"Failed to merge {json_file.name}: {e}")
+        print(f"✗ Failed {json_file.name}: {e}")
 
-def main():
-    meta = parse_info_file(INFO_FILE)
-    files = sorted(TRANSCRIPT_DIR.glob("*.json"))
-    if not files:
-        logging.warning("No transcripts found.")
-        print("No transcripts found.")
-        return
-    for jf in files:
-        convert_json_to_markdown(jf, meta)
+# If no segments were found at all, add a message
+if not all_segments_found:
+    md_content.append("*No transcript segments found in any JSON file.*\n")
 
-if __name__ == "__main__":
-    main()
+# Finally, write out the combined Markdown
+with open(combined_md_file, "w", encoding="utf-8") as mf:
+    mf.write("\n".join(md_content))
+
+logging.info("Markdown merge + conversion complete")
+print(f"✓ Combined transcript created: {combined_md_file.name}")

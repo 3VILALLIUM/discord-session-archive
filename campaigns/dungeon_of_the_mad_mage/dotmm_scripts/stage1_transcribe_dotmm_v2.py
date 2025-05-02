@@ -11,6 +11,11 @@ Stage 1 transcription script for Dungeon of the Mad Mage.
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
 import argparse
 import io
 import json

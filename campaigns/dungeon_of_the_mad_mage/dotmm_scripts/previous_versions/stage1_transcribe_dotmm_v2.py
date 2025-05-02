@@ -40,8 +40,8 @@ ROOT_RAW_AUDIO = Path(
 
 @dataclass(frozen=True)
 class Config:
-    chunk_seconds: int = 30
-    chunk_overlap: float = 0.25  # seconds
+    chunk_seconds: int = 300
+    chunk_overlap: float = 5  # seconds
     sample_rate: int = 16_000
     model: str = "whisper-1"
     max_retries: int = 5

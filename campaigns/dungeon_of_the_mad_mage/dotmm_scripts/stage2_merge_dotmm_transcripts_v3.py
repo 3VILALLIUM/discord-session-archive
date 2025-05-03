@@ -31,7 +31,13 @@ except ImportError:
 ROOT             = Path(__file__).resolve().parent.parent
 TRANSCRIPTS_ROOT = ROOT / "dotmm_transcripts"
 OUTPUT_ROOT      = ROOT / "dotmm_output"
-LOG_FILE         = ROOT / "stage2_merge_dotmm.log"
+
+# Ensure the campaign’s logs folder exists
+LOG_DIR          = ROOT / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# write your log into that folder
+LOG_FILE         = LOG_DIR / "stage2_merge_dotmm.log"
 
 # Logging: file + console
 logging.basicConfig(

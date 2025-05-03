@@ -19,6 +19,8 @@
 # ignore everything under the campaign’s raw_audio
 campaigns/dungeon_of_the_mad_mage/dotmm_sessions/raw_audio/**
 
+# ignore all Whisper JSON transcripts
+campaigns/dungeon_of_the_mad_mage/dotmm_transcripts/**
 
 # ignore everything under dotmm_sessions/raw_audio
 **/dotmm_sessions/raw_audio/**

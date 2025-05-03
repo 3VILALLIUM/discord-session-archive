@@ -140,7 +140,7 @@ def main() -> None:
     filtered: list[dict] = []
     recent: deque[tuple[float, bytes]] = deque(maxlen=args.dedupe_size)
     seen_hashes: set[bytes] = set()
-    window = 5.0
+    window = 6.0
 
     for seg in segments:
         duration = seg["end"] - seg["start"]

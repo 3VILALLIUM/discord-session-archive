@@ -13,6 +13,8 @@
 *.dat                    # raw.dat blobs (now in LFS)
 *.json                   # transcript JSON
 *.log                    # run-time logs
+**/dotmm_sessions/raw_audio/**
+*.txt
 
 # 2. Notebooks
 *.ipynb

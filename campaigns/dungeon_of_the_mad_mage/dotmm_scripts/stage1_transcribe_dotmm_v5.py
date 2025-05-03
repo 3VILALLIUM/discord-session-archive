@@ -10,12 +10,14 @@ Key upgrades
 ✓ concurrent transcription of files
 ✓ chunks in temp directory (raw_audio untouched)
 ✓ type hints and explicit logging setup
-✓ updated to v5.0.0 for clear versioning
+✓ console handler uses UTF-8 with replacement to avoid encoding errors
+✓ log format uses ASCII hyphens only
 """
 
 from __future__ import annotations
 import argparse
 import concurrent.futures as cf
+import io
 import json
 import logging
 import os
@@ -65,7 +67,7 @@ class ChunkMeta:
     start_ms: int
     path: Path
 
-# ── chunking helper ───────────────────────────────────────────
+# ── chunk helper ─────────────────────────────────────────────
 def iter_chunks(audio: AudioSegment) -> Iterator[ChunkMeta]:
     step = CHUNK_SEC * 1000
     offset = int(OVERLAP_SEC * 1000)
@@ -90,7 +92,7 @@ def whisper(flac: Path):
             response_format="verbose_json"
         )
 
-# ── transcribe a single file ─────────────────────────────────
+# ── transcribe a single audio file ───────────────────────────
 def transcribe_file(session_dir: Path, src: Path, logger: logging.Logger) -> None:
     with tempfile.TemporaryDirectory(prefix=f"{session_dir.name}_chunks_") as tmp:
         tmp_dir = Path(tmp)
@@ -136,7 +138,7 @@ def transcribe_file(session_dir: Path, src: Path, logger: logging.Logger) -> Non
         )
         logger.info("Saved combined transcript -> %s", combined.name)
 
-# ── GUI folder picker ──────────────────────────────────────────
+# ── GUI folder picker ─────────────────────────────────────────
 def pick_session_from_gui() -> Path:
     root = tk.Tk(); root.withdraw()
     choice = filedialog.askdirectory(
@@ -158,33 +160,37 @@ def main() -> None:
     if not session_dir.exists():
         sys.exit(f"Session folder {session_dir} does not exist.")
 
+    # prepare logs & output dirs
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
     TRANSCRIPT_ROOT.mkdir(parents=True, exist_ok=True)
 
+    # setup session logger with UTF-8 console handler
     log_file = LOG_ROOT / f"{session_dir.name}.log"
-    fmt = "%(asctime)s.%(msecs)03d — %(levelname)s — %(message)s"
-    datefmt = "%Y-%m-%d %H:%M:%S"
-    logger = logging.getLogger(session_dir.name)
-    logger.setLevel(logging.INFO)
+    log_fmt = "%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s"
+    date_fmt = "%Y-%m-%d %H:%M:%S"
+    session_logger = logging.getLogger(session_dir.name)
+    session_logger.setLevel(logging.INFO)
     fh = RotatingFileHandler(str(log_file), maxBytes=1_048_576, backupCount=3)
-    fh.setFormatter(logging.Formatter(fmt, datefmt))
-    logger.addHandler(fh)
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setFormatter(logging.Formatter(fmt, datefmt))
-    logger.addHandler(ch)
+    fh.setFormatter(logging.Formatter(log_fmt, date_fmt))
+    session_logger.addHandler(fh)
+    utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    ch = logging.StreamHandler(utf8_stdout)
+    ch.setFormatter(logging.Formatter(log_fmt, date_fmt))
+    session_logger.addHandler(ch)
 
+    # find and process audio files
     audio_files = [p for p in session_dir.iterdir() if p.suffix.lower() in SUPPORTED]
     if not audio_files:
         sys.exit(f"No supported audio files in {session_dir}.")
 
     with cf.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(transcribe_file, session_dir, af, logger): af for af in audio_files}
+        futures = {executor.submit(transcribe_file, session_dir, af, session_logger): af for af in audio_files}
         for future in cf.as_completed(futures):
             src = futures[future]
             if err := future.exception():
-                logger.error("Failed %s: %s", src.name, err)
+                session_logger.error("Failed %s: %s", src.name, err)
 
-    logger.info("Finished in %.2f s", time.time() - start)
+    session_logger.info("Finished in %.2f s", time.time() - start)
 
 if __name__ == "__main__":
     main()

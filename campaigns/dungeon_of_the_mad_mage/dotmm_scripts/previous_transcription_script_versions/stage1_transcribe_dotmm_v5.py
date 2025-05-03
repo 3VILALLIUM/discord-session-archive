@@ -96,7 +96,8 @@ def whisper(flac: Path):
 def transcribe_file(session_dir: Path, src: Path, logger: logging.Logger) -> None:
     with tempfile.TemporaryDirectory(prefix=f"{session_dir.name}_chunks_") as tmp:
         tmp_dir = Path(tmp)
-        out_dir = TRANSCRIPT_ROOT / f"{session_dir.name}_transcript" / src.stem
+        # FIXED: write to correct transcript folder
+        out_dir = TRANSCRIPT_ROOT / session_dir.name / src.stem
         out_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info("Processing %s", src.name)
@@ -132,6 +133,7 @@ def transcribe_file(session_dir: Path, src: Path, logger: logging.Logger) -> Non
             chunk_json.write_text(json.dumps(record, ensure_ascii=False, indent=2))
             logger.info("Saved %s", chunk_json.name)
 
+        # write combined transcript
         combined = out_dir / f"{src.stem}.json"
         combined.write_text(
             json.dumps({"file": src.name, "segments": all_segments}, ensure_ascii=False, indent=2)
@@ -154,17 +156,17 @@ def main() -> None:
     start = time.time()
 
     parser = argparse.ArgumentParser(description="Transcribe DOTMM session audio.")
-    parser.add_argument("--session", help="Path to session folder under raw_audio")
+    parser.add_argument("--session", help="Path to session folder under raw_audio or dotmm_transcripts")
     args = parser.parse_args()
-    session_dir = Path(args.session) if args.session else (pick_session_from_gui() if tk else sys.exit("Tk unavailable"))
+    session_dir = Path(args.session) if args.session else pick_session_from_gui()
     if not session_dir.exists():
         sys.exit(f"Session folder {session_dir} does not exist.")
 
-    # prepare logs & output dirs
+    # prepare dirs
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
     TRANSCRIPT_ROOT.mkdir(parents=True, exist_ok=True)
 
-    # setup session logger with UTF-8 console handler
+    # setup logging
     log_file = LOG_ROOT / f"{session_dir.name}.log"
     log_fmt = "%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s"
     date_fmt = "%Y-%m-%d %H:%M:%S"
@@ -178,7 +180,7 @@ def main() -> None:
     ch.setFormatter(logging.Formatter(log_fmt, date_fmt))
     session_logger.addHandler(ch)
 
-    # find and process audio files
+    # process audio
     audio_files = [p for p in session_dir.iterdir() if p.suffix.lower() in SUPPORTED]
     if not audio_files:
         sys.exit(f"No supported audio files in {session_dir}.")

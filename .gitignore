@@ -16,6 +16,13 @@
 **/dotmm_sessions/raw_audio/**
 *.txt
 
+# ignore everything under the campaign’s raw_audio
+campaigns/dungeon_of_the_mad_mage/dotmm_sessions/raw_audio/**
+
+
+# ignore everything under dotmm_sessions/raw_audio
+**/dotmm_sessions/raw_audio/**
+
 # 2. Notebooks
 *.ipynb
 .ipynb_checkpoints/

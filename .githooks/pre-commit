@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# block any _merged_raw* or _merged_v*.md about to be committed
+forbidden=$(git diff --cached --diff-filter=AM --name-only \
+            | grep -E '_merged_(raw_)?v[0-9]+\.md$')
+if [[ -n "$forbidden" ]]; then
+  echo "❌  Raw merged transcript(s) detected:" >&2
+  echo "$forbidden" | sed 's/^/   • /' >&2
+  echo "Commit aborted – run Stage 3 to produce _cleaned.md files." >&2
+  exit 1
+fi

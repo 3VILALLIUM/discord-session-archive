@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+VERSION = 3
+
 """
 Stage 2 (v3) – Merge DOTMM transcription chunks → clean Markdown (enhanced)
 
@@ -12,6 +14,7 @@ Features:
 • Enhanced CLI help with default values and usage examples
 • Scene-break uses max end-time to avoid false gaps during overlaps
 """
+
 from __future__ import annotations
 import argparse, json, logging, sys, hashlib
 from collections import deque
@@ -196,7 +199,7 @@ def main() -> None:
         md_lines.append("")
 
     raw_dir     = session_out / "_raw"
-    raw_dir.mkdir(exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
     output_file = raw_dir / f"{session_dir.name}_merged_v{VERSION}.md"
     output_file.write_text("\n".join(md_lines), encoding="utf-8")
     print(f"✓ Merged transcript written to {output_file}")

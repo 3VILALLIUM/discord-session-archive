@@ -22,6 +22,10 @@ campaigns/dungeon_of_the_mad_mage/dotmm_sessions/raw_audio/**
 # ignore all Whisper JSON transcripts
 campaigns/dungeon_of_the_mad_mage/dotmm_transcripts/**
 
+# ── Raw merged transcripts (contain PII) – NEVER commit ──────────────
+campaigns/*/dotmm_output/**/*_merged_v*.md
+!campaigns/*/dotmm_output/**/*_cleaned.md   # keep the scrubbed copies
+
 # ignore everything under dotmm_sessions/raw_audio
 **/dotmm_sessions/raw_audio/**
 

@@ -195,7 +195,9 @@ def main() -> None:
         md_lines.append(f"**[{timestamp} {seg['speaker']}]** {md_safe(seg['text'])}")
         md_lines.append("")
 
-    output_file = session_out / f"{session_dir.name}_merged_v3.md"
+    raw_dir     = session_out / "_raw"
+    raw_dir.mkdir(exist_ok=True)
+    output_file = raw_dir / f"{session_dir.name}_merged_v{VERSION}.md"
     output_file.write_text("\n".join(md_lines), encoding="utf-8")
     print(f"✓ Merged transcript written to {output_file}")
 

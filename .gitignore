@@ -25,6 +25,9 @@ campaigns/dungeon_of_the_mad_mage/dotmm_transcripts/**
 # ignore everything under dotmm_sessions/raw_audio
 **/dotmm_sessions/raw_audio/**
 
+# ignore all session logs under the campaign
+campaigns/dungeon_of_the_mad_mage/logs/**
+
 # 2. Notebooks
 *.ipynb
 .ipynb_checkpoints/

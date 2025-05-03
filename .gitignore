@@ -1,34 +1,38 @@
 # LoreBot Git Ignore List
+# =======================
 
-# Audio + temp files
-**/raw_audio/
-**/chunks/
-**/merged/
+# 1. Audio + Temp Artifacts
+**/raw_audio/          # source .aac/.m4a
+**/chunks/             # intermediate .flac chunks
+**/merged/             # scratch JSON merges
+**/dotmm_transcripts/  # Whisper chunk + combined JSON
 *.aac
 *.flac
 *.mp3
-*.zip
-*.log
+*.zip                  # ad-hoc exports
+*.json                 # all transcript JSON
+*.log                  # UTF-8 run-time logs
 
-# Jupyter/Colab notebooks
+# 2. Notebooks
 *.ipynb
 .ipynb_checkpoints/
 
-# Python cache
+# 3. Python Cache
 __pycache__/
 *.py[cod]
 
-# Mac/Windows trash
+# 4. OS Trash
 .DS_Store
 Thumbs.db
 
-# Env files / credentials
+# 5. Credentials / Secrets
 .env
 *.key
 *.pem
 
-# VS Code settings (optional)
+# 6. Editor Config (optional)
 .vscode/
 
-# Notebooks or temp AI staging
+# 7. AI Staging Scratch
 notebooklm_ready/
+

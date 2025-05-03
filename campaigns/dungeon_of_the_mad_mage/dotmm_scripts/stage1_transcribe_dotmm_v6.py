@@ -101,12 +101,11 @@ def whisper(flac: Path):
         )
 
 # ── transcribe a single audio file ───────────────────────────
-def transcribe_file(session_dir: Path, src: Path, logger: logging.Logger) -> None:
-    with tempfile.TemporaryDirectory(prefix=f"{session_dir.name}_chunks_") as tmp:
+def transcribe_file(session_name: str, src: Path, logger: logging.Logger) -> None:
+    with tempfile.TemporaryDirectory(prefix=f"{session_name}_chunks_") as tmp:
         tmp_dir = Path(tmp)
         out_dir = TRANSCRIPT_ROOT / session_name / src.stem
         out_dir.mkdir(parents=True, exist_ok=True)
-
 
         logger.info("Processing %s", src.name)
         audio = AudioSegment.from_file(src)
@@ -158,7 +157,10 @@ def transcribe_file(session_dir: Path, src: Path, logger: logging.Logger) -> Non
 
 # ── GUI folder picker ─────────────────────────────────────────
 def pick_session_from_gui() -> Path:
-    root = tk.Tk(); root.withdraw()
+    if not tk:
+        sys.exit("Tkinter not available and no --session provided.")
+    root = tk.Tk()
+    root.withdraw()
     choice = filedialog.askdirectory(
         title="Select session audio folder",
         initialdir=str(RAW_AUDIO_ROOT)
@@ -210,12 +212,9 @@ def main() -> None:
     session_logger.handlers.clear()
     session_logger.propagate = False
     session_logger.setLevel(logging.INFO)
-
-
     fh = RotatingFileHandler(str(log_file), maxBytes=1_048_576, backupCount=3, encoding="utf-8")
     fh.setFormatter(logging.Formatter(log_fmt, date_fmt))
     session_logger.addHandler(fh)
-
     utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     ch = logging.StreamHandler(utf8_stdout)
     ch.setFormatter(logging.Formatter(log_fmt, date_fmt))
@@ -227,7 +226,7 @@ def main() -> None:
         sys.exit(f"No supported audio files in {session_dir}.")
 
     with cf.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(transcribe_file, session_dir, af, session_logger): af for af in audio_files}
+        futures = {executor.submit(transcribe_file, session_name, af, session_logger): af for af in audio_files}
         for future in cf.as_completed(futures):
             src = futures[future]
             if err := future.exception():

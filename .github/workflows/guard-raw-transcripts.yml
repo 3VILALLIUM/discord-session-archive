@@ -1,0 +1,29 @@
+name: Guard Raw Transcripts
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  block_raw_transcripts:
+    name: 🚫 Block Raw Transcripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure no raw merged transcripts are committed
+        shell: bash
+        run: |
+          echo "🔍 Scanning for raw merged transcripts..."
+          raw=$(git ls-files | grep -E '_merged_(raw_)?v[0-9]+\.md$' || true)
+          if [[ -n "$raw" ]]; then
+            echo "::error::Found un-cleaned raw merged transcripts:"
+            echo "$raw" | sed 's/^/   • /'
+            exit 1
+          fi

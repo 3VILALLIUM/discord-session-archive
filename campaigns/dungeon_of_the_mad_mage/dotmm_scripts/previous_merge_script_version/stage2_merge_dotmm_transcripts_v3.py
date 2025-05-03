@@ -152,18 +152,20 @@ def main() -> None:
         dash_count = text.count("-")
         if dash_count and (len(text) - dash_count) <= 6:
             continue
+
         # Purge hashes older than time window
         while recent and seg["start"] - recent[0][0] > window:
             _, old_hash = recent.popleft()
             seen_hashes.discard(old_hash)
-            # Stable hash via BLAKE2b on rounded time + text
-            rounded_start = round(seg["start"], 2)
-            h = hashlib.blake2b(f"{rounded_start}:{text}".encode("utf-8"), digest_size=4).digest()
-            if h in seen_hashes:
-                continue
-            recent.append((seg["start"], h))
-            seen_hashes.add(h)
-            filtered.append(seg)
+
+        # Stable hash via BLAKE2b on text alone
+        h = hashlib.blake2b(text.encode("utf-8"), digest_size=4).digest()
+        if h in seen_hashes:
+            continue
+
+        recent.append((seg["start"], h))
+        seen_hashes.add(h)
+        filtered.append(seg)
 
 
     if not filtered:

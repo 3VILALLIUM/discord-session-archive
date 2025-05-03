@@ -1,17 +1,18 @@
 # LoreBot Git Ignore List
 # =======================
 
-# 1. Audio + Temp Artifacts
-**/raw_audio/          # source .aac/.m4a
-**/chunks/             # intermediate .flac chunks
-**/merged/             # scratch JSON merges
-**/dotmm_transcripts/  # Whisper chunk + combined JSON
+# 1. Audio & Temp Artifacts
+**/raw_audio/            # source .aac / .m4a
+**/chunks/               # intermediate .flac chunks
+**/merged/               # scratch JSON merges
+**/dotmm_transcripts/    # Whisper chunk + combined JSON
 *.aac
 *.flac
 *.mp3
-*.zip                  # ad-hoc exports
-*.json                 # all transcript JSON
-*.log                  # UTF-8 run-time logs
+*.zip                    # large archives (now in LFS)
+*.dat                    # raw.dat blobs (now in LFS)
+*.json                   # transcript JSON
+*.log                    # run-time logs
 
 # 2. Notebooks
 *.ipynb
@@ -29,10 +30,12 @@ Thumbs.db
 .env
 *.key
 *.pem
+*.csv
 
 # 6. Editor Config (optional)
 .vscode/
 
 # 7. AI Staging Scratch
 notebooklm_ready/
+
 

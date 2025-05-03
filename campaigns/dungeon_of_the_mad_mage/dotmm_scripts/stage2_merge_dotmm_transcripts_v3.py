@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 VERSION = 3
 
 """
@@ -15,10 +17,14 @@ Features:
 • Scene-break uses max end-time to avoid false gaps during overlaps
 """
 
-from __future__ import annotations
-import argparse, json, logging, sys, hashlib
+import argparse
+import json
+import logging
+import sys
+import hashlib
 from collections import deque
 from pathlib import Path
+
 
 # GUI import
 try:

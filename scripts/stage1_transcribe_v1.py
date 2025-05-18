@@ -50,7 +50,7 @@ OVERLAP_SEC = 5.0
 WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL_PATH", "large-v3")
 
 # --------- Max workers setup ---------------------
-def get_max_workers(default=1):
+def get_max_workers(default=3):
     env_val = os.environ.get("LOREBOT_MAX_WORKERS")
     if env_val:
         try:

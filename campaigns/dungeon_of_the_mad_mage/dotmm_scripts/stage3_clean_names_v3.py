@@ -20,12 +20,13 @@ try:
     from tkinter import filedialog
 except ImportError:   # headless / minimal python
     tk = None
+    filedialog = None  # type: ignore
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 def pick_path() -> Path:
     """Ask the user to pick a .md file or folder containing them."""
-    if not tk:
-        sys.exit("Tk-inter not available; pass a path on the command-line.")
+    if not tk or filedialog is None:
+        sys.exit("Tkinter unavailable; pass a path on the command-line.")
     root = tk.Tk(); root.withdraw()
     choice = filedialog.askopenfilename(title="Select merged .md _or_ a folder",
                                         filetypes=[("Markdown", "*.md"), ("All", "*.*")])

@@ -23,6 +23,7 @@ try:
     from tkinter import filedialog
 except ImportError:
     tk = None
+    filedialog = None  # type: ignore
 
 # ── paths ───────────────────────────────
 ROOT             = Path(__file__).resolve().parent.parent
@@ -40,7 +41,7 @@ log = logging.getLogger(__name__)
 
 # ── helpers ─────────────────────────────
 def pick_session() -> Path:
-    if not tk:
+    if not tk or filedialog is None:
         sys.exit("Tkinter unavailable – pass --session.")
     r = tk.Tk(); r.withdraw()
     d = filedialog.askdirectory(initialdir=str(TRANSCRIPTS_ROOT),

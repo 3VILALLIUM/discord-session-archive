@@ -31,7 +31,7 @@ import traceback
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Iterator, List, Dict, Any
+from typing import Iterator, List, Dict, Any, cast
 
 from dotenv import load_dotenv
 from pydub import AudioSegment
@@ -43,6 +43,7 @@ try:
     from tkinter import filedialog
 except ImportError:
     tk = None
+    filedialog = None  # type: ignore
 
 __version__ = "5.0.0"
 
@@ -79,7 +80,8 @@ def iter_chunks(audio: AudioSegment, tmp_dir: Path, stem: str) -> Iterator[Chunk
     while pos < len(audio):
         start = max(0, pos - offset)
         chunk_path = tmp_dir / f"{stem}_chunk_{idx:03}.flac"
-        segment = audio[start : start + CHUNK_SEC * 1000]
+        # Help static analyzers: ensure slice is treated as an AudioSegment
+        segment = cast(AudioSegment, audio[start : start + CHUNK_SEC * 1000])
         segment.export(chunk_path, format="flac")
         yield ChunkMeta(idx=idx, start_ms=start, path=chunk_path)
         pos += step
@@ -108,7 +110,14 @@ def transcribe_file(session_name: str, src: Path, logger: logging.Logger) -> Non
         out_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info("Processing %s", src.name)
-        audio = AudioSegment.from_file(src)
+        if not src.exists() or not src.is_file():
+            logger.error("Skipping non-file or missing path: %s", src)
+            return
+        try:
+            audio = AudioSegment.from_file(src)
+        except Exception as e:
+            logger.error("Failed to load %s: %s", src, e)
+            return
 
         # split and prepare chunks
         metas = list(iter_chunks(audio, tmp_dir, src.stem))
@@ -124,9 +133,10 @@ def transcribe_file(session_name: str, src: Path, logger: logging.Logger) -> Non
                 try:
                     resp = future.result()
                     offset = meta.start_ms / 1000
+                    segments = getattr(resp, "segments", None) or []
                     seglist = [
                         {"start": s.start + offset, "end": s.end + offset, "text": s.text}
-                        for s in resp.segments
+                        for s in segments
                     ]
                     record = {"chunk_file": meta.path.name, "segments": seglist}
                     all_segments.extend(seglist)
@@ -157,10 +167,11 @@ def transcribe_file(session_name: str, src: Path, logger: logging.Logger) -> Non
 
 # ── GUI folder picker ─────────────────────────────────────────
 def pick_session_from_gui() -> Path:
-    if not tk:
+    if not tk or filedialog is None:
         sys.exit("Tkinter not available and no --session provided.")
     root = tk.Tk()
     root.withdraw()
+    # At this point, filedialog is not None due to guard above
     choice = filedialog.askdirectory(
         title="Select session audio folder",
         initialdir=str(RAW_AUDIO_ROOT)
@@ -221,7 +232,11 @@ def main() -> None:
     session_logger.addHandler(ch)
 
     # process audio
-    audio_files = [p for p in session_dir.iterdir() if p.suffix.lower() in SUPPORTED]
+    # Recursively discover supported audio FILES (ignore directories that happen to end with .aac, etc.)
+    audio_files = [
+        p for p in session_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in SUPPORTED
+    ]
     if not audio_files:
         sys.exit(f"No supported audio files in {session_dir}.")
 

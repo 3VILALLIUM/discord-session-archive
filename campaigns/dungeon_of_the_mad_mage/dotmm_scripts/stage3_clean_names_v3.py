@@ -53,6 +53,7 @@ def build_realname_pattern(names: Iterable[str]) -> re.Pattern:
 
 MENTION_RE     = re.compile(r"@\w+")
 SPEAKER_RE     = re.compile(r"(\[\s*\d+\.\d+\s*s\s+)([\w-]+)(\s*\])")   # [12.34s 1-name_0]
+CHUNK_SUFFIX_RE = re.compile(r"^(?P<base>.+)_\d+$")
 
 def replace_handles(text: str, handle_map: Dict[str, str]) -> str:
     return MENTION_RE.sub(lambda m: handle_map.get(m.group(), m.group()), text)
@@ -66,10 +67,19 @@ def replace_speaker_tag(text: str, handle_map: Dict[str, str]) -> str:
         pre, tag, post = m.groups()
         try:
             _, rest = tag.split("-", 1)        # drop leading track-index
-            handle  = "@" + rest.rsplit("_", 1)[0]
         except ValueError:
             return m.group(0)
-        replacement = handle_map.get(handle, tag)
+        # Exact handle lookup first (supports handles that contain underscores).
+        exact_handle = "@" + rest
+        replacement = handle_map.get(exact_handle)
+        if replacement is None:
+            # Fallback for chunk-style tags like "mathyieu_0", "name_12".
+            m_suffix = CHUNK_SUFFIX_RE.match(rest)
+            if m_suffix:
+                stripped_handle = "@" + m_suffix.group("base")
+                replacement = handle_map.get(stripped_handle)
+        if replacement is None:
+            replacement = tag
         return f"{pre}{replacement}{post}"
     return SPEAKER_RE.sub(sub, text)
 
@@ -117,9 +127,12 @@ def process_file(src: Path,
 
 def find_md_files(path: Path, recursive: bool=True) -> List[Path]:
     if path.is_file() and path.suffix.lower() == ".md":
-        return [path]
+        return [] if path.name.endswith("_cleaned.md") else [path]
     pattern = "**/*_merged_v*.md" if recursive else "*_merged_v*.md"
-    return sorted(p for p in path.glob(pattern) if p.is_file())
+    return sorted(
+        p for p in path.glob(pattern)
+        if p.is_file() and not p.name.endswith("_cleaned.md")
+    )
 
 # ── main CLI ────────────────────────────────────────────────────────────────
 def main() -> None:

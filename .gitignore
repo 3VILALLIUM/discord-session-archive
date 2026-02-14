@@ -28,6 +28,7 @@ campaigns/**/merged/**
 
 # 3. DOTMM strict allowlist
 # Ignore everything in this campaign except scripts.
+campaigns/dungeon_of_the_mad_mage/dotmm_output/
 campaigns/dungeon_of_the_mad_mage/**
 !campaigns/dungeon_of_the_mad_mage/dotmm_scripts/
 !campaigns/dungeon_of_the_mad_mage/dotmm_scripts/**

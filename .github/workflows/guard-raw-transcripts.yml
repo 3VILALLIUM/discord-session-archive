@@ -1,4 +1,4 @@
-name: Guard Raw Transcripts
+name: Privacy Guard
 
 on:
   push:
@@ -7,23 +7,59 @@ on:
     branches: [ main ]
 
 jobs:
-  block_raw_transcripts:
-    name: 🚫 Block Raw Transcripts
+  privacy_guard:
+    name: Privacy Guard
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Ensure no raw merged transcripts are committed
+      - name: Ensure no forbidden artifacts are tracked
         shell: bash
         run: |
-          echo "🔍 Scanning for raw merged transcripts..."
-          raw=$(git ls-files | grep -E '_merged_(raw_)?v[0-9]+\.md$' || true)
-          if [[ -n "$raw" ]]; then
-            echo "::error::Found un-cleaned raw merged transcripts:"
-            echo "$raw" | sed 's/^/   • /'
+          set -euo pipefail
+
+          mapfile -t tracked < <(git ls-files)
+          violations=()
+
+          for path in "${tracked[@]}"; do
+            lower="${path,,}"
+
+            if [[ "$path" == campaigns/dungeon_of_the_mad_mage/* ]] && [[ "$path" != campaigns/dungeon_of_the_mad_mage/dotmm_scripts/* ]]; then
+              violations+=("$path [outside dotmm_scripts allowlist]")
+              continue
+            fi
+
+            if [[ "$path" == campaigns/*/dotmm_output/* ]] || \
+               [[ "$path" == campaigns/*/dotmm_transcripts/* ]] || \
+               [[ "$path" == campaigns/*/dotmm_session_output_overviews/* ]] || \
+               [[ "$path" == campaigns/*/dotmm_sessions/* ]] || \
+               [[ "$path" == campaigns/*/session_*/* ]] || \
+               [[ "$path" == campaigns/*/*_session_*/* ]] || \
+               [[ "$path" == campaigns/*/logs/* ]] || \
+               [[ "$path" == campaigns/*/chunks/* ]] || \
+               [[ "$path" == campaigns/*/raw_audio/* ]] || \
+               [[ "$path" == campaigns/*/merged/* ]]; then
+              violations+=("$path [generated artifact directory]")
+              continue
+            fi
+
+            if [[ "$lower" =~ \.(aac|flac|mp3|wav|m4a|mp4|json|log|txt|zip|dat)$ ]]; then
+              violations+=("$path [forbidden extension]")
+              continue
+            fi
+
+            if [[ "$lower" =~ _merged_(raw_)?v[0-9]+\.md$ ]]; then
+              violations+=("$path [raw merged transcript]")
+              continue
+            fi
+          done
+
+          if (( ${#violations[@]} > 0 )); then
+            echo "::error::Privacy guard found forbidden tracked paths:"
+            printf '  - %s\n' "${violations[@]}"
             exit 1
           fi
+
+          echo "Privacy guard passed."

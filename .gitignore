@@ -25,6 +25,8 @@ campaigns/**/merged/**
 *.txt
 *.zip
 *.dat
+!requirements.txt
+!How to run LoreBot Copy and Paste.txt
 
 # 3. DOTMM strict allowlist
 # Ignore everything in this campaign except scripts.
@@ -47,9 +49,12 @@ Thumbs.db
 
 # 7. Credentials / secrets
 .env
+!.env.example
 *.key
 *.pem
 *.csv
+!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/handle_map.example.csv
+!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/realname_map.example.csv
 
 # 8. Editor config
 .vscode/

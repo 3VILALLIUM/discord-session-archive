@@ -26,6 +26,10 @@ jobs:
           for path in "${tracked[@]}"; do
             lower="${path,,}"
 
+            if [[ "$path" == "requirements.txt" ]]; then
+              continue
+            fi
+
             if [[ "$path" == campaigns/dungeon_of_the_mad_mage/* ]] && [[ "$path" != campaigns/dungeon_of_the_mad_mage/dotmm_scripts/* ]]; then
               violations+=("$path [outside dotmm_scripts allowlist]")
               continue

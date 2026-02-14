@@ -1,0 +1,6 @@
+pydub>=0.25.1
+python-dotenv
+openai
+tenacity
+pytest
+pyaudioop

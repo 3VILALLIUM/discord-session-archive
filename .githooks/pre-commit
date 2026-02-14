@@ -12,6 +12,10 @@ while IFS= read -r path; do
   [[ -z "$path" ]] && continue
   lower="${path,,}"
 
+  if [[ "$path" == "requirements.txt" ]]; then
+    continue
+  fi
+
   if [[ "$path" == campaigns/dungeon_of_the_mad_mage/* ]] && [[ "$path" != campaigns/dungeon_of_the_mad_mage/dotmm_scripts/* ]]; then
     forbidden+=("$path [outside dotmm_scripts allowlist]")
     continue

@@ -1,57 +1,57 @@
 # LoreBot Git Ignore List
 # =======================
 
-# 1. Audio & Temp Artifacts
-**/raw_audio/            # source .aac / .m4a
-**/chunks/               # intermediate .flac chunks
-**/merged/               # scratch JSON merges
-**/dotmm_transcripts/    # Whisper chunk + combined JSON
+# 1. Generated session artifacts (all campaigns)
+campaigns/**/dotmm_output/**
+campaigns/**/dotmm_transcripts/**
+campaigns/**/dotmm_session_output_overviews/**
+campaigns/**/dotmm_sessions/**
+campaigns/**/session_*/
+campaigns/**/*_session_*/
+campaigns/**/logs/**
+campaigns/**/chunks/**
+campaigns/**/raw_audio/**
+campaigns/**/merged/**
+
+# 2. Artifact file types
 *.aac
 *.flac
 *.mp3
-*.zip                    # large archives (now in LFS)
-*.dat                    # raw.dat blobs (now in LFS)
-*.json                   # transcript JSON
-*.log                    # run-time logs
-**/dotmm_sessions/raw_audio/**
+*.wav
+*.m4a
+*.mp4
+*.json
+*.log
 *.txt
+*.zip
+*.dat
 
-# ignore everything under the campaign’s raw_audio
-campaigns/dungeon_of_the_mad_mage/dotmm_sessions/raw_audio/**
+# 3. DOTMM strict allowlist
+# Ignore everything in this campaign except scripts.
+campaigns/dungeon_of_the_mad_mage/**
+!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/
+!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/**
 
-# ignore all Whisper JSON transcripts
-campaigns/dungeon_of_the_mad_mage/dotmm_transcripts/**
-
-# ── Raw merged transcripts (contain PII) – NEVER commit ──────────────
-campaigns/*/dotmm_output/**/*_merged_v*.md
-!campaigns/*/dotmm_output/**/*_cleaned.md   # keep the scrubbed copies
-
-# ignore everything under dotmm_sessions/raw_audio
-**/dotmm_sessions/raw_audio/**
-
-# ignore all session logs under the campaign
-campaigns/dungeon_of_the_mad_mage/logs/**
-
-# 2. Notebooks
+# 4. Notebooks
 *.ipynb
 .ipynb_checkpoints/
 
-# 3. Python Cache
+# 5. Python cache
 __pycache__/
 *.py[cod]
 
-# 4. OS Trash
+# 6. OS trash
 .DS_Store
 Thumbs.db
 
-# 5. Credentials / Secrets
+# 7. Credentials / secrets
 .env
 *.key
 *.pem
 *.csv
 
-# 6. Editor Config (optional)
+# 8. Editor config
 .vscode/
 
-# 7. AI Staging Scratch
+# 9. AI staging scratch
 notebooklm_ready/

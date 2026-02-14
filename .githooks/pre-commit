@@ -1,10 +1,50 @@
 #!/usr/bin/env bash
-# block any _merged_raw* or _merged_v*.md about to be committed
-forbidden=$(git diff --cached --diff-filter=AM --name-only \
-            | grep -E '_merged_(raw_)?v[0-9]+\.md$')
-if [[ -n "$forbidden" ]]; then
-  echo "❌  Raw merged transcript(s) detected:" >&2
-  echo "$forbidden" | sed 's/^/   • /' >&2
-  echo "Commit aborted – run Stage 3 to produce _cleaned.md files." >&2
+set -euo pipefail
+
+staged_paths="$(git diff --cached --name-only --diff-filter=ACMR)"
+if [[ -z "${staged_paths}" ]]; then
+  exit 0
+fi
+
+forbidden=()
+
+while IFS= read -r path; do
+  [[ -z "$path" ]] && continue
+  lower="${path,,}"
+
+  if [[ "$path" == campaigns/dungeon_of_the_mad_mage/* ]] && [[ "$path" != campaigns/dungeon_of_the_mad_mage/dotmm_scripts/* ]]; then
+    forbidden+=("$path [outside dotmm_scripts allowlist]")
+    continue
+  fi
+
+  if [[ "$path" == campaigns/*/dotmm_output/* ]] || \
+     [[ "$path" == campaigns/*/dotmm_transcripts/* ]] || \
+     [[ "$path" == campaigns/*/dotmm_session_output_overviews/* ]] || \
+     [[ "$path" == campaigns/*/dotmm_sessions/* ]] || \
+     [[ "$path" == campaigns/*/session_*/* ]] || \
+     [[ "$path" == campaigns/*/*_session_*/* ]] || \
+     [[ "$path" == campaigns/*/logs/* ]] || \
+     [[ "$path" == campaigns/*/chunks/* ]] || \
+     [[ "$path" == campaigns/*/raw_audio/* ]] || \
+     [[ "$path" == campaigns/*/merged/* ]]; then
+    forbidden+=("$path [generated artifact directory]")
+    continue
+  fi
+
+  if [[ "$lower" =~ \.(aac|flac|mp3|wav|m4a|mp4|json|log|txt|zip|dat)$ ]]; then
+    forbidden+=("$path [forbidden extension]")
+    continue
+  fi
+
+  if [[ "$lower" =~ _merged_(raw_)?v[0-9]+\.md$ ]]; then
+    forbidden+=("$path [raw merged transcript]")
+    continue
+  fi
+done <<< "${staged_paths}"
+
+if (( ${#forbidden[@]} > 0 )); then
+  echo "ERROR: privacy guard blocked commit. Forbidden staged paths:" >&2
+  printf '  - %s\n' "${forbidden[@]}" >&2
+  echo "Fix: keep generated/session artifacts local and stage only allowed files." >&2
   exit 1
 fi

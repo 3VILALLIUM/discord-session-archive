@@ -26,7 +26,6 @@ campaigns/**/merged/**
 *.zip
 *.dat
 !requirements.txt
-!How to run LoreBot Copy and Paste.txt
 
 # 3. DOTMM strict allowlist
 # Ignore everything in this campaign except scripts.
@@ -34,6 +33,8 @@ campaigns/dungeon_of_the_mad_mage/dotmm_output/
 campaigns/dungeon_of_the_mad_mage/**
 !campaigns/dungeon_of_the_mad_mage/dotmm_scripts/
 !campaigns/dungeon_of_the_mad_mage/dotmm_scripts/**
+# Keep local helper command references out of git tracking.
+campaigns/dungeon_of_the_mad_mage/dotmm_scripts/dotmm_script_docs/
 
 # 4. Notebooks
 *.ipynb

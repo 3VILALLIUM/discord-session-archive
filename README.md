@@ -52,6 +52,7 @@ Run this before real transcription runs:
 ## Privacy Boundary
 
 Do not commit audio, transcripts, logs, or secrets.
+
 You are responsible for understanding and complying with all applicable laws and regulations related to audio recording, consent, and transcription in your jurisdiction. This project does not provide legal advice.
 
 Guardrails are enforced by:

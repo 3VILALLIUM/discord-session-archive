@@ -1,6 +1,6 @@
 # Security Policy
 
-If you need to report a security vulnerability, privacy-impacting issue, or legal concern, email:
+If you need to report a security vulnerability or legal concern, email:
 `reap.change_0x@icloud.com`
 
 Please include:

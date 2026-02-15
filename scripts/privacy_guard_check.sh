@@ -20,7 +20,7 @@ for path in "${tracked[@]}"; do
     continue
   fi
 
-  if [[ "$lower" =~ \.(aac|flac|m4a|mp3|wav|mp4|log|key|pem)$ ]]; then
+  if [[ "$lower" =~ \.(aac|flac|m4a|mp3|wav|mp4|ogg|opus|webm|log|key|pem)$ ]]; then
     violations+=("$path [forbidden extension]")
     continue
   fi

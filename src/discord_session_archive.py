@@ -155,7 +155,7 @@ def load_name_map(mode: str) -> Dict[str, str]:
         )
         sys.exit(1)
     try:
-        payload = json.loads(map_path.read_text(encoding="utf-8"))
+        payload = json.loads(map_path.read_text(encoding="utf-8-sig"))
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: failed reading name map file {map_path}: {exc}", file=sys.stderr)
         sys.exit(1)

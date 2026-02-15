@@ -104,6 +104,21 @@ def test_load_name_map_non_string_entry_fails(tmp_path: Path, monkeypatch):
         mod.load_name_map("handle")
 
 
+def test_load_name_map_tolerates_utf8_bom(tmp_path: Path, monkeypatch):
+    """Regression test: load_name_map() must handle UTF-8 BOM (EF BB BF) gracefully."""
+    map_path = tmp_path / "handle_map.json"
+    map_path.parent.mkdir(parents=True, exist_ok=True)
+    # Write JSON with UTF-8 BOM prefix
+    bom = b'\xef\xbb\xbf'
+    json_bytes = json.dumps({"speaker one": "Player A", "SPEAKER-TWO": "Player B"}).encode("utf-8")
+    map_path.write_bytes(bom + json_bytes)
+    monkeypatch.setattr(mod, "HANDLE_MAP_PATH", map_path)
+
+    loaded = mod.load_name_map("handle")
+    assert loaded == {"speaker one": "Player A", "speaker two": "Player B"}
+
+
+
 def test_compute_chunks_basic():
     chunks = mod.compute_chunks(duration_ms=10_000, chunk_ms=4_000, overlap_ms=1_000)
     assert chunks == [(0, 4000), (3000, 7000), (6000, 10000)]

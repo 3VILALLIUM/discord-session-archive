@@ -17,14 +17,17 @@ if (-not (Test-Path $configDir)) {
     Write-Host "Created $configDir"
 }
 
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
 $handleMapPath = Join-Path $configDir "handle_map.json"
 if (-not (Test-Path $handleMapPath)) {
-    @'
+    $handleMapContent = @'
 {
   "speaker one": "alpha_handle",
   "speaker two": "beta_handle"
 }
-'@ | Set-Content -Path $handleMapPath -Encoding utf8
+'@
+    [System.IO.File]::WriteAllText($handleMapPath, $handleMapContent, $utf8NoBom)
     Write-Host "Created $handleMapPath"
 } else {
     Write-Host "$handleMapPath already exists; leaving unchanged"
@@ -32,12 +35,13 @@ if (-not (Test-Path $handleMapPath)) {
 
 $realnameMapPath = Join-Path $configDir "realname_map.json"
 if (-not (Test-Path $realnameMapPath)) {
-    @'
+    $realnameMapContent = @'
 {
   "speaker one": "Alice Carter",
   "speaker two": "Bob Rivera"
 }
-'@ | Set-Content -Path $realnameMapPath -Encoding utf8
+'@
+    [System.IO.File]::WriteAllText($realnameMapPath, $realnameMapContent, $utf8NoBom)
     Write-Host "Created $realnameMapPath"
 } else {
     Write-Host "$realnameMapPath already exists; leaving unchanged"

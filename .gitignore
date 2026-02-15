@@ -7,7 +7,10 @@ _local/
 *.m4a
 *.mp3
 *.mp4
+*.ogg
+*.opus
 *.wav
+*.webm
 *.log
 
 # Python env/cache

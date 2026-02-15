@@ -41,6 +41,14 @@ python .\src\discord_session_archive.py --pick-folder --clean
 
 This creates/updates `.venv`, installs requirements, sets hooks, and runs the privacy guard.
 
+## Preflight Checks
+
+Run this before real transcription runs:
+
+```powershell
+.\scripts\preflight.ps1
+```
+
 ## Privacy Boundary
 
 Do not commit audio, transcripts, logs, or secrets.

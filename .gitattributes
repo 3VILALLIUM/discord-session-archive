@@ -1,1 +1,4 @@
 # Git LFS filters intentionally disabled for clone-readiness.
+*.sh text eol=lf
+.githooks/* text eol=lf
+.github/workflows/*.yml text eol=lf

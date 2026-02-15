@@ -99,3 +99,40 @@ git config --get core.hooksPath
 ```
 
 Expected value: `.githooks`.
+
+## Repeatable Preflight
+
+Use one command to verify local environment, guards, and CLI basics:
+
+```powershell
+.\scripts\preflight.ps1
+```
+
+## VS Code Debugging (Local Only)
+
+`.vscode/` is gitignored. You can create a local debug profile with:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "discord-session-archive",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/discord_session_archive.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--input",
+        "C:\\path\\to\\CraigExport",
+        "--label",
+        "debug",
+        "--clean",
+        "--json",
+        "--notebooklm",
+        "--force"
+      ]
+    }
+  ]
+}
+```

@@ -54,6 +54,14 @@ python .\src\discord_session_archive.py --pick-folder --clean
 .\scripts\bootstrap.ps1
 ```
 
+## Preflight
+
+Run the local preflight before real runs:
+
+```powershell
+.\scripts\preflight.ps1
+```
+
 ## Output Location
 
 By default, outputs are written under:

@@ -19,7 +19,7 @@ foreach ($path in $tracked) {
         continue
     }
 
-    if ($lower -match '\.(aac|flac|m4a|mp3|wav|mp4|log|key|pem)$') {
+    if ($lower -match '\.(aac|flac|m4a|mp3|wav|mp4|ogg|opus|webm|log|key|pem)$') {
         [void]$violations.Add("$path [forbidden extension]")
         continue
     }

@@ -14,7 +14,7 @@ Use only data you are allowed to process and share.
 
 Do not commit:
 - Local runtime outputs under `_local/`.
-- Audio/video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`).
+- Audio/video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`, `.ogg`, `.opus`, `.webm`).
 - Logs (`.log`).
 - Secrets (`.env`, `*.key`, `*.pem`).
 - Generated transcript files outside docs/code paths.
@@ -23,6 +23,7 @@ Do not commit:
 
 - `.gitignore` blocks local outputs and sensitive file classes.
 - `.githooks/pre-commit` runs privacy checks before commit.
+- `.githooks/pre-push` runs privacy checks and tests before push, and blocks direct pushes to `origin/main`.
 - `scripts/privacy_guard_check.ps1` / `scripts/privacy_guard_check.sh` scan tracked files.
 - `.github/workflows/guard-raw-transcripts.yml` enforces the same rules in CI.
 
@@ -34,6 +35,7 @@ Run from repo root:
 git status --short
 git ls-files
 .\scripts\privacy_guard_check.ps1
+.\scripts\preflight.ps1
 rg -n -i "OPENAI_API_KEY|_local|transcript|craig|whisper" README.md docs scripts .githooks .github src tests
 ```
 

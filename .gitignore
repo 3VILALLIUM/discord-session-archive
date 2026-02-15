@@ -41,6 +41,10 @@ campaigns/dungeon_of_the_mad_mage/dotmm_scripts/dotmm_script_docs/
 .ipynb_checkpoints/
 
 # 5. Python cache
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
 __pycache__/
 *.py[cod]
 

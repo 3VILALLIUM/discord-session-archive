@@ -30,7 +30,7 @@ Run stages:
 cd campaigns\dungeon_of_the_mad_mage\dotmm_scripts
 python .\stage1_transcribe_dotmm_v6.py --session session_016_audio
 python .\stage2_merge_dotmm_transcripts_v6.py --session session_016_transcript --scene-gap 10 --window 6 --max-repeats 5 --force
-python .\stage3_clean_names_v3.py "C:\Users\Brigh\LoreBot\campaigns\dungeon_of_the_mad_mage\dotmm_output\session_016_transcript\_raw" .\handle_map.csv .\realname_map.csv --force
+python .\stage3_clean_names_v3.py ..\dotmm_output\session_016_transcript\_raw .\handle_map.csv .\realname_map.csv --force
 ```
 
 ## Docs

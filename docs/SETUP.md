@@ -20,6 +20,12 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+## After Clone Checklist
+
+1. `.\scripts\bootstrap.ps1` (PowerShell) or `bash ./scripts/bootstrap.sh`
+2. `git config --get core.hooksPath`
+3. `.\scripts\privacy_guard_check.ps1` or `bash ./scripts/privacy_guard_check.sh`
+
 ## Configure API Key
 
 Create local environment file:

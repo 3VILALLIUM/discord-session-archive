@@ -3,4 +3,3 @@ python-dotenv
 openai
 tenacity
 pytest
-pyaudioop

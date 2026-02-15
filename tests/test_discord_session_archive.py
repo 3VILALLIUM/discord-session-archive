@@ -135,6 +135,20 @@ def test_load_name_map_ignores_reserved_comment_keys(tmp_path: Path, monkeypatch
     assert loaded == {"speaker one": "Player A"}
 
 
+def test_load_name_map_non_string_comment_value_fails(tmp_path: Path, monkeypatch):
+    map_path = tmp_path / "handle_map.json"
+    write_map(
+        map_path,
+        {
+            "__comment_1": 123,
+            "speaker one": "Player A",
+        },
+    )
+    monkeypatch.setattr(mod, "HANDLE_MAP_PATH", map_path)
+    with pytest.raises(SystemExit):
+        mod.load_name_map("handle")
+
+
 def test_compute_chunks_basic():
     chunks = mod.compute_chunks(duration_ms=10_000, chunk_ms=4_000, overlap_ms=1_000)
     assert chunks == [(0, 4000), (3000, 7000), (6000, 10000)]

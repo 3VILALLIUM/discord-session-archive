@@ -19,5 +19,6 @@ if (Test-Path ".venv\Scripts\python.exe") {
 & $py -m pip install -r requirements.txt
 git config core.hooksPath .githooks
 git config --get core.hooksPath
+& (Join-Path $PSScriptRoot "init_local_config.ps1")
 & $py -c "import sys; print(sys.version)"
 & (Join-Path $PSScriptRoot "privacy_guard_check.ps1")

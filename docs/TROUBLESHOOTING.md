@@ -77,8 +77,8 @@ Valid example:
 
 ```json
 {
-  "speaker one": "Alice Carter",
-  "speaker two": "Bob Rivera"
+  "speaker one": "Example Person One",
+  "speaker two": "Example Person Two"
 }
 ```
 

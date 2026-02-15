@@ -23,8 +23,12 @@ $handleMapPath = Join-Path $configDir "handle_map.json"
 if (-not (Test-Path $handleMapPath)) {
     $handleMapContent = @'
 {
-  "speaker one": "alpha_handle",
-  "speaker two": "beta_handle"
+  "__comment_1": "Handle map: replace Discord handles/labels with your preferred names.",
+  "__comment_2": "Keys are aliases; values are the preferred output speaker labels.",
+  "__comment_3": "Add variants (with/without @, hyphen, underscore, spacing) for reliability.",
+  "speaker one": "Example Preferred Name One",
+  "@speaker-one": "Example Preferred Name One",
+  "speaker two": "Example Preferred Name Two"
 }
 '@
     [System.IO.File]::WriteAllText($handleMapPath, $handleMapContent, $utf8NoBom)
@@ -37,8 +41,12 @@ $realnameMapPath = Join-Path $configDir "realname_map.json"
 if (-not (Test-Path $realnameMapPath)) {
     $realnameMapContent = @'
 {
-  "speaker one": "Alice Carter",
-  "speaker two": "Bob Rivera"
+  "__comment_1": "Real-name map: optionally replace spoken-name labels with preferred real names.",
+  "__comment_2": "Keys are aliases; values are canonical output speaker labels.",
+  "__comment_3": "Transcript text is unchanged; only speaker labels are remapped.",
+  "speaker one": "Example Person One",
+  "example person one": "Example Person One",
+  "speaker two": "Example Person Two"
 }
 '@
     [System.IO.File]::WriteAllText($realnameMapPath, $realnameMapContent, $utf8NoBom)

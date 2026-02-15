@@ -135,6 +135,10 @@ def normalize_name_map_key(text: str) -> str:
     return key
 
 
+def is_name_map_comment_key(text: str) -> bool:
+    return text.strip().lower().startswith("__comment")
+
+
 def map_path_for_mode(mode: str) -> Optional[Path]:
     if mode == "handle":
         return HANDLE_MAP_PATH
@@ -165,6 +169,11 @@ def load_name_map(mode: str) -> Dict[str, str]:
 
     mapped: Dict[str, str] = {}
     for raw_key, raw_value in payload.items():
+        if isinstance(raw_key, str) and is_name_map_comment_key(raw_key):
+            if not isinstance(raw_value, str):
+                print(f"ERROR: name map comment values must be strings: {map_path}", file=sys.stderr)
+                sys.exit(1)
+            continue
         if not isinstance(raw_key, str) or not isinstance(raw_value, str):
             print(f"ERROR: name map entries must be string:string pairs: {map_path}", file=sys.stderr)
             sys.exit(1)

@@ -48,12 +48,14 @@ This creates if missing:
 - `_local/config/realname_map.json`
 
 Map files are optional and used only when `--name-map-mode handle` or `--name-map-mode real` is selected.
-Map format is JSON object key/value pairs, for example:
+
+Map format is JSON object key/value pairs. Keys beginning with `__comment` are ignored and can be used for inline notes. Example:
 
 ```json
 {
-  "speaker one": "Alice Carter",
-  "speaker two": "Bob Rivera"
+  "__comment_1": "Use this map file to control speaker-label replacement.",
+  "speaker one": "Example Person One",
+  "speaker two": "Example Person Two"
 }
 ```
 
@@ -62,6 +64,8 @@ Map format is JSON object key/value pairs, for example:
 ```powershell
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --clean --json --notebooklm
 ```
+
+No repository-level `inputs/` folder is required. Pass any folder/file path with `--input`, or use the picker mode below.
 
 Picker alternative:
 
@@ -81,11 +85,39 @@ Real-name map mode:
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-mode real --clean --json
 ```
 
+## Name Map Reliability (Aliases)
+
+Name map lookup is case-insensitive after trimming, and treats `_` and `-` as spaces. Add multiple alias keys per person so label replacement remains stable across formatting differences.
+
+Checklist:
+- Add variants with and without leading `@`.
+- Add punctuation variants (hyphen, underscore, dots, spaces).
+- Add spacing variants (`Mary-Jane`, `Mary Jane`, `MaryJane`).
+- Add common nickname and misspelling variants.
+- Map all alias keys to one canonical output label.
+
+Example (placeholder data):
+
+```json
+{
+  "example-name": "Example Name",
+  "example_name": "Example Name",
+  "example name": "Example Name",
+  "@example-name": "Example Name",
+  "examplename": "Example Name",
+  "exampel name": "Example Name"
+}
+```
+
+Use AI to generate many alias variants for each person, but do it locally and do NOT paste transcripts or private identifiers into public tools. Give the AI only the canonical name + handle you already know, ask for variants, then review and paste into your local gitignored map.
+
 ## Optional Bootstrap
 
 ```powershell
 .\scripts\bootstrap.ps1
 ```
+
+Bootstrap also initializes local config templates if missing (`.env`, `_local/config/handle_map.json`, `_local/config/realname_map.json`).
 
 ## Preflight
 

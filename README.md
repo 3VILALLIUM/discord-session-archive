@@ -1,42 +1,63 @@
-# LoreBot
+# discord-session-archive
 
-LoreBot is a local-first transcription and cleanup pipeline for tabletop RPG sessions.
+Turnkey Craig -> whisper-1 -> transcript pipeline.
 
-## What Is Public vs Local-Only
+This tool accepts a Craig export folder (or direct audio files) and writes local transcripts.
+It is source-agnostic and domain-agnostic.
 
-Public in this repo:
-- Pipeline scripts
-- Tests
-- Documentation
-- Guardrails (`.gitignore`, hooks, CI)
+## Big Thanks to Craig
 
-Local-only (must never be committed):
-- Audio files
-- Transcript JSON/chunks/logs
-- Session output artifacts
-- Name mapping CSV files
+Huge thanks to the Craig project for making Discord recording workflows possible:
+- https://craig.chat/
+- https://discord.bots.gg/bots/272937604339466240
+- https://www.patreon.com/CraigRec
 
-## Quickstart
+## Quickstart (Windows PowerShell)
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+git config core.hooksPath .githooks
+Copy-Item .env.example .env
+# Edit .env and set OPENAI_API_KEY
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --clean --json --notebooklm
 ```
 
-Run stages:
+Outputs are written to `_local\runs\<run_id>\` by default.
+
+Optional picker mode:
 
 ```powershell
-cd campaigns\dungeon_of_the_mad_mage\dotmm_scripts
-python .\stage1_transcribe_dotmm_v6.py --session session_016_audio
-python .\stage2_merge_dotmm_transcripts_v6.py --session session_016_transcript --scene-gap 10 --window 6 --max-repeats 5 --force
-python .\stage3_clean_names_v3.py ..\dotmm_output\session_016_transcript\_raw .\handle_map.csv .\realname_map.csv --force
+python .\src\discord_session_archive.py --pick-folder --clean
 ```
 
-## Docs
+## Bootstrap Script
 
-See `docs/README.md` for the full docs index and reading order.
+```powershell
+.\scripts\bootstrap.ps1
+```
 
-## Security/Privacy Boundary
+This creates/updates `.venv`, installs requirements, sets hooks, and runs the privacy guard.
 
-This repository is designed so generated session artifacts remain local. Privacy guardrails are documented in `docs/PRIVACY.md`.
+## Privacy Boundary
+
+Do not commit audio, transcripts, logs, or secrets.
+Guardrails are enforced by:
+- `.gitignore`
+- `.githooks/pre-commit`
+- `scripts/privacy_guard_check.ps1`
+- `.github/workflows/guard-raw-transcripts.yml`
+
+Details are in `docs/PRIVACY.md`.
+
+## Project Policy
+
+This repository is provided as-is.
+Community input is closed: no issues, PRs, discussions, or suggestions are accepted.
+
+## License
+
+Free to use, copy, and modify for noncommercial use only.
+See `LICENSE`.

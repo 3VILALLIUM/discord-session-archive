@@ -10,26 +10,31 @@ foreach ($path in $tracked) {
     $lower = $path.ToLowerInvariant()
 
     if ($path -eq ".env") {
-        [void]$violations.Add($path)
+        [void]$violations.Add("$path [secret env file]")
         continue
     }
 
-    if ($lower -match '\.(log|aac|flac|m4a|mp3|wav)$') {
-        [void]$violations.Add($path)
+    if ($path -like "_local/*" -or $path -like "*/_local/*") {
+        [void]$violations.Add("$path [local runtime output]")
         continue
     }
 
-    if ($path -like "dotmm_output/*" -or $path -like "*/dotmm_output/*" -or
-        $path -like "dotmm_transcripts/*" -or $path -like "*/dotmm_transcripts/*" -or
-        $path -like "dotmm_sessions/*" -or $path -like "*/dotmm_sessions/*" -or
-        $path -like "dotmm_session_output_overviews/*" -or $path -like "*/dotmm_session_output_overviews/*") {
-        [void]$violations.Add($path)
+    if ($lower -match '\.(aac|flac|m4a|mp3|wav|mp4|log|key|pem)$') {
+        [void]$violations.Add("$path [forbidden extension]")
+        continue
+    }
+
+    if ($lower -match '(^|/)transcript(\.cleaned)?\.md$' -or
+        $lower -match '(^|/)transcript\.json$' -or
+        $lower -match '(^|/)notebooklm\.md$') {
+        [void]$violations.Add("$path [generated transcript artifact]")
         continue
     }
 }
 
 if ($violations.Count -gt 0) {
-    $violations | ForEach-Object { Write-Host $_ }
+    Write-Host "ERROR: privacy guard blocked due to forbidden tracked files:"
+    $violations | ForEach-Object { Write-Host " - $_" }
     exit 1
 }
 

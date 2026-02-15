@@ -7,7 +7,7 @@ Back to docs index: `docs/README.md`
 - Windows with PowerShell.
 - Python 3.10+.
 - `ffmpeg` installed and available in `PATH`.
-- A valid `OPENAI_API_KEY`.
+- Valid `OPENAI_API_KEY`.
 
 ## Environment Setup
 
@@ -18,17 +18,11 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+git config core.hooksPath .githooks
+git config --get core.hooksPath
 ```
 
-## After Clone Checklist
-
-1. `.\scripts\bootstrap.ps1` (PowerShell) or `bash ./scripts/bootstrap.sh`
-2. `git config --get core.hooksPath`
-3. `.\scripts\privacy_guard_check.ps1` or `bash ./scripts/privacy_guard_check.sh`
-
 ## Configure API Key
-
-Create local environment file:
 
 ```powershell
 Copy-Item .env.example .env
@@ -42,40 +36,35 @@ OPENAI_API_KEY=your_real_key_here
 
 `.env` is local-only and must never be committed.
 
-## Prepare Name Maps
-
-Create local map files from examples:
+## One-Command Happy Path
 
 ```powershell
-Copy-Item campaigns\dungeon_of_the_mad_mage\dotmm_scripts\handle_map.example.csv campaigns\dungeon_of_the_mad_mage\dotmm_scripts\handle_map.csv
-Copy-Item campaigns\dungeon_of_the_mad_mage\dotmm_scripts\realname_map.example.csv campaigns\dungeon_of_the_mad_mage\dotmm_scripts\realname_map.csv
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --clean --json --notebooklm
 ```
 
-Map format is `source;replacement` (semicolon-delimited).
-
-## First Successful Run Checklist
-
-1. Run Stage 1:
+Picker alternative:
 
 ```powershell
-cd campaigns\dungeon_of_the_mad_mage\dotmm_scripts
-python .\stage1_transcribe_dotmm_v6.py --session session_001_audio
+python .\src\discord_session_archive.py --pick-folder --clean
 ```
 
-2. Run Stage 2:
+## Optional Bootstrap
 
 ```powershell
-python .\stage2_merge_dotmm_transcripts_v6.py --session session_001_transcript --scene-gap 10 --window 6 --max-repeats 5 --force
+.\scripts\bootstrap.ps1
 ```
 
-3. Run Stage 3:
+## Output Location
 
-```powershell
-python .\stage3_clean_names_v3.py ..\dotmm_output\session_001_transcript\_raw .\handle_map.csv .\realname_map.csv --force
+By default, outputs are written under:
+
+```text
+_local/runs/<run_id>/
 ```
 
-4. Confirm outputs exist locally and are ignored by Git:
-
-```powershell
-git check-ignore -v ..\dotmm_output\session_001_transcript\session_001_annotated_recap_v2.md
-```
+Typical files:
+- `transcript.md`
+- `transcript.cleaned.md` (if `--clean`)
+- `transcript.json` (if `--json`)
+- `notebooklm.md` (if `--notebooklm`)
+- `run.log`

@@ -1,3 +1,16 @@
-#!/bin/sh
-# LFS hook intentionally disabled for clone-readiness.
-exit 0
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+bash scripts/privacy_guard_check.sh
+if [[ -f ".venv/Scripts/python.exe" ]]; then
+  py=".venv/Scripts/python.exe"
+elif [[ -f ".venv/bin/python" ]]; then
+  py=".venv/bin/python"
+else
+  py="python"
+fi
+
+"$py" -m pytest -q

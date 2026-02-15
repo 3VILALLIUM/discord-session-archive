@@ -1,69 +1,59 @@
 # AGENTS Guide
 
-This file defines how AI coding assistants should work in this repository.
-It is written to be tool-agnostic and usable by Codex, Claude Code, GitHub Copilot agents, and similar tools.
+This file defines how coding assistants should operate in this repository.
 
 ## Goal
 
-Help contributors modify scripts, tests, and docs safely while preventing sensitive local artifacts from being committed.
+Maintain a lean, safe, public-facing `discord-session-archive` tool while preventing sensitive artifacts from being committed.
 
 ## Repository Boundaries
 
 Public code and docs should center on:
-- `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/`
+- `src/`
 - `tests/`
+- `scripts/`
 - `.github/workflows/`
 - `.githooks/`
 - `README.md`
 - `docs/`
 - `requirements.txt`
 
-Local-only artifacts must never be committed, including anything in or similar to:
-- `campaigns/dungeon_of_the_mad_mage/dotmm_output/`
-- `campaigns/dungeon_of_the_mad_mage/dotmm_transcripts/`
-- `campaigns/dungeon_of_the_mad_mage/dotmm_session_output_overviews/`
-- Audio, transcript chunks, logs, merged outputs, temporary files, and name-mapping data.
+Local-only artifacts must never be committed, including:
+- `_local/**`
+- audio/video files
+- generated transcripts/JSON/log outputs
+- `.env` and key material
 
 ## Non-Negotiable Privacy Rules
 
-1. Never stage or commit transcripts, recaps, audio, logs, chunk JSON, merged output artifacts, or session overviews.
-2. Never stage or commit handle-map or realname-map source data.
+1. Never stage or commit local runtime outputs from `_local/`.
+2. Never stage or commit secrets (`.env`, keys, PEM files).
 3. Before proposing a commit, run checks listed in "Pre-Commit Safety Checks".
-4. If a requested change conflicts with these rules, prioritize privacy and ask for clarification.
+4. If a requested change conflicts with privacy rules, prioritize privacy.
 
 ## Working Style for Agents
 
 1. Prefer minimal, targeted diffs.
 2. Do not refactor unrelated code.
 3. Do not rewrite project history unless explicitly requested.
-4. Keep changes consistent with existing script and test style.
-5. When adding commands to docs, prefer Windows PowerShell examples first.
+4. Keep docs and commands PowerShell-first.
+5. Keep naming/source references aligned to `discord-session-archive`.
 
 ## Pre-Commit Safety Checks
 
-Run these before preparing a PR:
+Run these before preparing changes:
 
 ```powershell
 git status --short
 git ls-files
-git check-ignore -v campaigns/dungeon_of_the_mad_mage/dotmm_output/session_001_transcript 2>$null
+.\scripts\privacy_guard_check.ps1
+python -m pytest -q
 ```
 
-Privacy-focused scans:
+## Project Policy
 
-```powershell
-rg -n -i "transcript|recap|session_output|dotmm_output|raw_audio|chunk|deepgram|whisper|handle_map|realname_map" .
-```
-
-If scan hits are in generated artifacts that are ignored, do not add them. If hits are in tracked files unexpectedly, stop and resolve before commit.
-
-## PR Expectations
-
-PRs should include:
-- What changed.
-- Why the change is needed.
-- Validation performed (tests, lint, or command outputs).
-- Confirmation that no local-only artifacts were added.
+Repository is provided as-is.
+No issues, PRs, discussions, or suggestions are accepted.
 
 ## Docs and Entry Points
 
@@ -71,11 +61,9 @@ Start with:
 - `README.md`
 - `docs/README.md`
 
-Use canonical docs under `docs/` and treat `docs/archive/` as historical reference only.
-
 ## If You Are Unsure
 
 Default to the safer action:
 - keep sensitive artifacts local,
 - avoid staging ambiguous files,
-- ask for user confirmation before any destructive action.
+- ask for user confirmation before destructive actions.

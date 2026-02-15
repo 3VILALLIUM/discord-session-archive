@@ -1,46 +1,16 @@
-# LoreBot Git Ignore List
-# =======================
+# Local runtime outputs
+_local/
 
-# 1. Generated session artifacts (all campaigns)
-campaigns/**/dotmm_output/**
-campaigns/**/dotmm_transcripts/**
-campaigns/**/dotmm_session_output_overviews/**
-campaigns/**/dotmm_sessions/**
-campaigns/**/session_*/
-campaigns/**/*_session_*/
-campaigns/**/logs/**
-campaigns/**/chunks/**
-campaigns/**/raw_audio/**
-campaigns/**/merged/**
-
-# 2. Artifact file types
+# Media and generated artifacts
 *.aac
 *.flac
-*.mp3
-*.wav
 *.m4a
+*.mp3
 *.mp4
-*.json
+*.wav
 *.log
-*.txt
-*.zip
-*.dat
-!requirements.txt
 
-# 3. DOTMM strict allowlist
-# Ignore everything in this campaign except scripts.
-campaigns/dungeon_of_the_mad_mage/dotmm_output/
-campaigns/dungeon_of_the_mad_mage/**
-!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/
-!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/**
-# Keep local helper command references out of git tracking.
-campaigns/dungeon_of_the_mad_mage/dotmm_scripts/dotmm_script_docs/
-
-# 4. Notebooks
-*.ipynb
-.ipynb_checkpoints/
-
-# 5. Python cache
+# Python env/cache
 .venv/
 venv/
 .pytest_cache/
@@ -48,21 +18,13 @@ venv/
 __pycache__/
 *.py[cod]
 
-# 6. OS trash
-.DS_Store
-Thumbs.db
-
-# 7. Credentials / secrets
+# Secrets
 .env
 !.env.example
 *.key
 *.pem
-*.csv
-!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/handle_map.example.csv
-!campaigns/dungeon_of_the_mad_mage/dotmm_scripts/realname_map.example.csv
 
-# 8. Editor config
+# Editor and OS
 .vscode/
-
-# 9. AI staging scratch
-notebooklm_ready/
+.DS_Store
+Thumbs.db

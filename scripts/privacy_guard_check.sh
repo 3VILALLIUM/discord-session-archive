@@ -11,26 +11,31 @@ for path in "${tracked[@]}"; do
   lower="${path,,}"
 
   if [[ "$path" == ".env" ]]; then
-    violations+=("$path")
+    violations+=("$path [secret env file]")
     continue
   fi
 
-  if [[ "$lower" =~ \.(log|aac|flac|m4a|mp3|wav)$ ]]; then
-    violations+=("$path")
+  if [[ "$path" == _local/* ]] || [[ "$path" == */_local/* ]]; then
+    violations+=("$path [local runtime output]")
     continue
   fi
 
-  if [[ "$path" == dotmm_output/* ]] || [[ "$path" == */dotmm_output/* ]] || \
-     [[ "$path" == dotmm_transcripts/* ]] || [[ "$path" == */dotmm_transcripts/* ]] || \
-     [[ "$path" == dotmm_sessions/* ]] || [[ "$path" == */dotmm_sessions/* ]] || \
-     [[ "$path" == dotmm_session_output_overviews/* ]] || [[ "$path" == */dotmm_session_output_overviews/* ]]; then
-    violations+=("$path")
+  if [[ "$lower" =~ \.(aac|flac|m4a|mp3|wav|mp4|log|key|pem)$ ]]; then
+    violations+=("$path [forbidden extension]")
+    continue
+  fi
+
+  if [[ "$lower" =~ (^|/)transcript(\.cleaned)?\.md$ ]] || \
+     [[ "$lower" =~ (^|/)transcript\.json$ ]] || \
+     [[ "$lower" =~ (^|/)notebooklm\.md$ ]]; then
+    violations+=("$path [generated transcript artifact]")
     continue
   fi
 done
 
 if (( ${#violations[@]} > 0 )); then
-  printf '%s\n' "${violations[@]}"
+  echo "ERROR: privacy guard blocked due to forbidden tracked files:"
+  printf ' - %s\n' "${violations[@]}"
   exit 1
 fi
 

@@ -2,44 +2,46 @@
 
 Back to docs index: `docs/README.md`
 
-## Forbidden to Track
+## Baseline Risk Model
 
-Do not commit any of the following:
+This workflow has baseline privacy risk:
+- Audio is captured by Craig.
+- Audio is sent to OpenAI for transcription (`whisper-1`).
 
-- Audio files and video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`).
-- Transcript chunks and merged artifacts (`.json`, raw merged markdown outputs, recap outputs).
-- Session output directories (`dotmm_output`, `dotmm_transcripts`, `dotmm_session_output_overviews`, `dotmm_sessions`, logs/chunks/raw_audio/merged trees).
-- Real handle/real-name map source files (for example `handle_map.csv`, `realname_map.csv`).
-- Secrets (`.env`, keys, PEM material).
+Use only data you are allowed to process and share.
 
-Allowed exceptions include:
+## Never Track These Artifacts
 
-- `requirements.txt`
-- `.env.example`
-- `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/handle_map.example.csv`
-- `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/realname_map.example.csv`
+Do not commit:
+- Local runtime outputs under `_local/`.
+- Audio/video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`).
+- Logs (`.log`).
+- Secrets (`.env`, `*.key`, `*.pem`).
+- Generated transcript files outside docs/code paths.
 
 ## Guardrails
 
-- `.gitignore` blocks generated artifacts and sensitive file classes.
-- `.githooks/pre-commit` blocks forbidden staged paths before commit.
-- `.github/workflows/guard-raw-transcripts.yml` fails PRs/pushes if forbidden tracked files exist.
+- `.gitignore` blocks local outputs and sensitive file classes.
+- `.githooks/pre-commit` runs privacy checks before commit.
+- `scripts/privacy_guard_check.ps1` / `scripts/privacy_guard_check.sh` scan tracked files.
+- `.github/workflows/guard-raw-transcripts.yml` enforces the same rules in CI.
 
-## Pre-Release Audit Commands
+## Audit Commands
 
 Run from repo root:
 
 ```powershell
 git status --short
-git ls-files -- "campaigns/**/dotmm_output/**" "campaigns/**/dotmm_transcripts/**" "campaigns/**/dotmm_session_output_overviews/**" "campaigns/**/dotmm_sessions/**" "*.mp3" "*.wav" "*.m4a" "*.aac" "*.flac" "*.mp4" "*.json" "*.log"
-git check-ignore -v campaigns/dungeon_of_the_mad_mage/dotmm_output/session_001_transcript/session_001_annotated_recap_v2.md
+git ls-files
+.\scripts\privacy_guard_check.ps1
+rg -n -i "OPENAI_API_KEY|_local|transcript|craig|whisper" README.md docs scripts .githooks .github src tests
 ```
 
-Optional grep-based review for sensitive patterns in tracked docs/code:
+## API Key Handling
 
-```powershell
-rg -n -i "transcript|recap|session_output|raw_audio|chunk|handle_map|realname_map" README.md docs campaigns .github .githooks tests
-```
+- Keep real keys only in `.env` or environment variables.
+- Track only `.env.example`.
+- Never print keys in logs, commits, issues, or screenshots.
 
 ## Incident Response
 
@@ -55,10 +57,3 @@ If sensitive files were committed but not pushed:
 git rm --cached <path>
 git commit -m "Remove sensitive artifact from tracking"
 ```
-
-If sensitive files were pushed:
-
-1. Remove tracking immediately in a follow-up commit.
-2. Rotate any exposed credentials.
-3. Plan a history rewrite if policy/legal needs require full purge.
-4. Re-run privacy audit commands before reopening the repository.

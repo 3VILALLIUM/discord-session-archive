@@ -2,12 +2,12 @@
 
 Back to docs index: `docs/README.md`
 
-## Common Setup Failures
+## Setup Failures
 
 ### `OPENAI_API_KEY not set`
 
 Symptom:
-- Stage scripts exit with key-related error.
+- CLI exits with key-related error.
 
 Fix:
 
@@ -20,28 +20,55 @@ Set `OPENAI_API_KEY` in `.env`, then re-run.
 ### `ffmpeg not found in PATH`
 
 Symptom:
-- Transcription CLI exits with ffmpeg error.
+- CLI exits with ffmpeg error.
 
 Fix:
-
 1. Install `ffmpeg`.
 2. Ensure install directory is on `PATH`.
-3. Restart terminal and re-run command.
+3. Restart terminal and run again.
 
-### Tkinter unavailable errors
+### `ERROR: no supported audio files found`
 
 Symptom:
-- Script requests `--session` or explicit path when GUI picker fails.
+- Input path exists but has no supported audio.
 
 Fix:
-- Pass explicit CLI arguments instead of relying on GUI picker.
-
-Examples:
+- Confirm your Craig export folder contains `.mp3`, `.wav`, `.m4a`, `.aac`, or `.flac`.
+- Pass explicit input:
 
 ```powershell
-python .\stage1_transcribe_dotmm_v6.py --session session_001_audio
-python .\stage2_merge_dotmm_transcripts_v6.py --session session_001_transcript --force
-python .\stage3_clean_names_v3.py ..\dotmm_output\session_001_transcript\_raw .\handle_map.csv .\realname_map.csv --force
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
+```
+
+### Tkinter unavailable for picker
+
+Symptom:
+- `--pick-folder` fails on minimal/headless Python builds.
+
+Fix:
+- Use explicit `--input` path instead of picker mode.
+
+## Output/Run Failures
+
+### Existing run directory error
+
+Symptom:
+- Output folder already exists for a run ID.
+
+Fix:
+- Use `--force`, or choose a different `--label`.
+
+### Partial transcription errors
+
+Symptom:
+- Run completes but includes chunk errors.
+
+Fix:
+- Re-run with stable network.
+- Reduce parallelism:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --max-workers 1 --force
 ```
 
 ## Privacy Guard Failures
@@ -49,31 +76,15 @@ python .\stage3_clean_names_v3.py ..\dotmm_output\session_001_transcript\_raw .\
 ### `ERROR: privacy guard blocked commit`
 
 Cause:
-- You staged a forbidden path or extension.
+- Staged or tracked files match blocked artifact patterns.
 
 Fix:
 
 ```powershell
 git restore --staged <path>
 git status --short
-bash .githooks/pre-commit; echo PRECOMMIT_EXIT_$LASTEXITCODE
+.\scripts\privacy_guard_check.ps1
 ```
-
-Allowed text-file exception:
-- `requirements.txt` is allowed.
-
-### CI `Privacy Guard` fails on PR
-
-Cause:
-- Forbidden tracked file exists in branch history state.
-
-Fix:
-
-```powershell
-git ls-files -- "campaigns/**/dotmm_output/**" "campaigns/**/dotmm_transcripts/**" "campaigns/**/dotmm_session_output_overviews/**" "*.json" "*.log" "*.mp3" "*.wav" "*.txt"
-```
-
-Untrack violations, commit, and push again.
 
 ## Hooks Not Running
 
@@ -87,15 +98,4 @@ git config core.hooksPath .githooks
 git config --get core.hooksPath
 ```
 
-Expected value: `.githooks`
-
-## Encoding and Line Ending Warnings
-
-### LF/CRLF warning on commit
-
-Symptom:
-- Git warns that LF will be replaced by CRLF.
-
-Fix:
-- Usually informational on Windows.
-- Normalize with repository `.gitattributes` if needed for a future cleanup PR.
+Expected value: `.githooks`.

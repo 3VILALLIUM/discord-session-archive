@@ -4,38 +4,43 @@ Back to docs index: `docs/README.md`
 
 ## Pipeline Overview
 
-LoreBot is a local-first three-stage transcript pipeline:
+`discord-session-archive` uses one primary pipeline script:
 
-1. Stage 1 transcribes audio into structured transcript chunks.
-2. Stage 2 merges chunks into a raw markdown transcript.
-3. Stage 3 replaces handles and real names to produce cleaned markdown.
+- `src/discord_session_archive.py`
+
+Flow:
+1. Discover audio files from a Craig export folder or direct file paths.
+2. Split audio into overlapping chunks.
+3. Transcribe chunks with OpenAI `whisper-1`.
+4. Merge and sort timestamped segments.
+5. Write local outputs (`.md`, optional cleaned `.md`, optional `.json`, optional NotebookLM `.md`).
 
 ## Data Flow
 
-`dotmm_sessions/raw_audio` -> `dotmm_transcripts` -> `dotmm_output/<session>/_raw` -> `dotmm_output/<session>/*_cleaned.md`
+`input folder/files` -> `chunking + whisper-1` -> `_local/runs/<run_id>/`
 
-Generated artifacts remain local-only by policy and guardrails.
+Generated artifacts are local-only by policy.
 
-## Script to Stage Mapping
+## Output Contract
 
-| Stage | Script | Main Input | Main Output |
-| --- | --- | --- | --- |
-| 1 | `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/stage1_transcribe_dotmm_v6.py` | `dotmm_sessions/raw_audio/session_*_audio` | `dotmm_transcripts/session_*_transcript/**/*.json` |
-| 2 | `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/stage2_merge_dotmm_transcripts_v6.py` | `dotmm_transcripts/session_*_transcript` | `dotmm_output/session_*_transcript/_raw/*_merged_raw_v*.md` |
-| 3 | `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/stage3_clean_names_v3.py` | Raw merged markdown + map CSVs | `dotmm_output/session_*_transcript/*_cleaned.md` |
-| Alternative CLI | `campaigns/dungeon_of_the_mad_mage/dotmm_scripts/ttrpg_transcribe.py` | Audio file(s) or folder(s) | Transcript JSON + logs |
+Default output root:
 
-## Privacy Boundary
+```text
+_local/runs/<run_id>/
+```
 
-- Public repo surface is scripts, tests, docs, and guardrails.
-- Output folders and generated artifacts are local-only.
-- Real map CSVs are local-only; only `*.example.csv` files are trackable.
+Files:
+- `transcript.md` (always)
+- `transcript.cleaned.md` (optional)
+- `transcript.json` (optional)
+- `notebooklm.md` (optional)
+- `run.log`
 
 ## Testing Surface
 
-Current automated tests target the alternative transcription CLI:
+Automated tests target the primary script:
 
-- `tests/test_ttrpg_transcribe.py`
+- `tests/test_discord_session_archive.py`
 
 Run:
 

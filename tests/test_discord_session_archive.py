@@ -119,6 +119,22 @@ def test_load_name_map_tolerates_utf8_bom(tmp_path: Path, monkeypatch):
 
 
 
+def test_load_name_map_ignores_reserved_comment_keys(tmp_path: Path, monkeypatch):
+    map_path = tmp_path / "handle_map.json"
+    write_map(
+        map_path,
+        {
+            "__comment_1": "Use this file for discord-handle aliases.",
+            "__comment_2": "Keys are aliases; values are preferred display names.",
+            "speaker one": "Player A",
+        },
+    )
+    monkeypatch.setattr(mod, "HANDLE_MAP_PATH", map_path)
+
+    loaded = mod.load_name_map("handle")
+    assert loaded == {"speaker one": "Player A"}
+
+
 def test_compute_chunks_basic():
     chunks = mod.compute_chunks(duration_ms=10_000, chunk_ms=4_000, overlap_ms=1_000)
     assert chunks == [(0, 4000), (3000, 7000), (6000, 10000)]

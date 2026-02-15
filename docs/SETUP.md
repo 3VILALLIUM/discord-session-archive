@@ -49,9 +49,11 @@ This creates if missing:
 
 Map files are optional and used only when `--name-map-mode handle` or `--name-map-mode real` is selected.
 Map format is JSON object key/value pairs, for example:
+Keys beginning with `__comment` are ignored and can be used for inline notes.
 
 ```json
 {
+  "__comment_1": "Use this map file to control speaker-label replacement.",
   "speaker one": "Example Person One",
   "speaker two": "Example Person Two"
 }

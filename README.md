@@ -76,6 +76,7 @@ Map files are local-only:
 - `_local/config/realname_map.json`
 
 Lookup is case-insensitive after trimming. The mapper treats `_` and `-` like spaces.
+Reserved keys beginning with `__comment` are ignored and can be used for inline usage notes in local map files.
 
 For reliable replacement, include alias keys (for example: with and without `@`, punctuation variants, spacing variants, nicknames, and common misspellings) that all point to one canonical label.
 
@@ -83,6 +84,7 @@ Example (placeholder data):
 
 ```json
 {
+  "__comment_1": "Handle map: replace Discord handles/labels with preferred names.",
   "example-name": "Example Name",
   "example_name": "Example Name",
   "example name": "Example Name",

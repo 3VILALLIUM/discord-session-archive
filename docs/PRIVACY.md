@@ -10,6 +10,13 @@ This workflow has baseline privacy risk:
 
 Use only data you are allowed to process and share.
 
+## Legal Compliance
+
+Recording, consent, and transcription laws vary by jurisdiction and use case.
+You must obtain any notice and consent required by the laws and regulations that apply to your location and participants.
+You are solely responsible for legal compliance when using this repository and any generated artifacts.
+This repository does not provide legal advice.
+
 ## Never Track These Artifacts
 
 Do not commit:

@@ -17,6 +17,13 @@ Not accepted:
 
 If you need different behavior, fork the repository and maintain your own variant.
 
+## Private Reporting Channel
+
+Security, vulnerability, and legal concerns are accepted by private email only:
+`reap.change_0x@icloud.com`
+
+Do not include sensitive details in public channels.
+
 ## Intended Use
 
 - Personal and internal noncommercial workflows.

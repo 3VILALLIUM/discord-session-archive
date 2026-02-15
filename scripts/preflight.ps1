@@ -48,6 +48,6 @@ Invoke-NativeStep "compileall src tests" { & $py -m compileall src tests }
 
 Invoke-NativeStep "pytest -q" { & $py -m pytest -q }
 
-Invoke-NativeStep "CLI --help" { & $py ".\src\discord_session_archive.py" --help }
+Invoke-NativeStep "CLI --help" { & $py (Join-Path "src" "discord_session_archive.py") --help }
 
-Invoke-NativeStep "CLI --version" { & $py ".\src\discord_session_archive.py" --version }
+Invoke-NativeStep "CLI --version" { & $py (Join-Path "src" "discord_session_archive.py") --version }

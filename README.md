@@ -55,7 +55,8 @@ Details are in `docs/PRIVACY.md`.
 ## Project Policy
 
 This repository is provided as-is.
-Community input is closed: no issues, PRs, discussions, or suggestions are accepted.
+Feature requests and general support are not accepted.
+For security, vulnerability, or legal concerns, email `reap.change_0x@icloud.com`.
 
 ## License
 

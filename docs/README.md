@@ -14,13 +14,15 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 1. `docs/SETUP.md`
 2. `docs/ARCHITECTURE.md`
 3. `docs/PRIVACY.md`
-4. `docs/TROUBLESHOOTING.md`
-5. `docs/POLICY.md`
+4. `SECURITY.md`
+5. `docs/TROUBLESHOOTING.md`
+6. `docs/POLICY.md`
 
 ## Docs Map
 
 - `docs/SETUP.md`: local setup and first run.
 - `docs/ARCHITECTURE.md`: single-script pipeline design.
 - `docs/PRIVACY.md`: privacy model, guardrails, and audit commands.
+- `SECURITY.md`: private reporting channel for security, vulnerability, and legal concerns.
 - `docs/TROUBLESHOOTING.md`: common failures and fixes.
 - `docs/POLICY.md`: no-community-input and support policy.

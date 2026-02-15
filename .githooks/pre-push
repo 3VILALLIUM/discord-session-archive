@@ -11,7 +11,7 @@ if [[ "$remote_name" == "origin" ]]; then
       echo "ERROR: direct pushes to origin/main are blocked. Open a PR."
       exit 1
     fi
-  done
+  done < /dev/stdin
 fi
 
 bash scripts/privacy_guard_check.sh

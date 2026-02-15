@@ -21,11 +21,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          GH_REF: ${{ github.ref }}
+          GH_SHA: ${{ github.sha }}
         run: |
           git init .
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
-          git fetch --no-tags --depth=1 origin "${GH_REF}"
+          git fetch --no-tags --depth=1 origin "${GH_SHA}"
           git checkout --detach FETCH_HEAD
 
       - name: Run privacy guard

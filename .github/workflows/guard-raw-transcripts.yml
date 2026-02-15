@@ -1,9 +1,14 @@
 name: Privacy Guard
 
 on:
+  pull_request:
+    branches: ["main"]
   push:
-    branches: ["**"]
+    branches: ["main"]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   privacy_guard:
@@ -11,8 +16,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout code (org-policy compliant)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
+          git fetch --no-tags origin "${GH_SHA}"
+          git checkout --detach FETCH_HEAD
 
       - name: Run privacy guard
         shell: bash

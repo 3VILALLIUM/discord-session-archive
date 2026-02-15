@@ -4,6 +4,16 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+remote_name="${1:-}"
+if [[ "$remote_name" == "origin" ]]; then
+  while read -r local_ref local_sha remote_ref remote_sha; do
+    if [[ "$remote_ref" == "refs/heads/main" ]]; then
+      echo "ERROR: direct pushes to origin/main are blocked. Open a PR." >&2
+      exit 1
+    fi
+  done < /dev/stdin
+fi
+
 bash scripts/privacy_guard_check.sh
 if [[ -f ".venv/Scripts/python.exe" ]]; then
   py=".venv/Scripts/python.exe"

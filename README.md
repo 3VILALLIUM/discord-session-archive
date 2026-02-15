@@ -55,7 +55,7 @@ Details are in `docs/PRIVACY.md`.
 ## Project Policy
 
 This repository is provided as-is.
-Pull requests, issues, discussions, and other suggestions are not accepted; see `docs/POLICY.md` for the full policy.
+Pull requests, issues, discussions, and suggestions are not accepted; see `docs/POLICY.md` for the full policy.
 For security, vulnerability, or legal concerns, email `reap.change_0x@icloud.com`.
 
 ## License

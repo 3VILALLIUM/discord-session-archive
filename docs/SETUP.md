@@ -48,8 +48,8 @@ This creates if missing:
 - `_local/config/realname_map.json`
 
 Map files are optional and used only when `--name-map-mode handle` or `--name-map-mode real` is selected.
-Map format is JSON object key/value pairs, for example:
-Keys beginning with `__comment` are ignored and can be used for inline notes.
+
+Map format is JSON object key/value pairs. Keys beginning with `__comment` are ignored and can be used for inline notes. Example:
 
 ```json
 {

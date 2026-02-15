@@ -37,8 +37,8 @@ $realnameMapPath = Join-Path $configDir "realname_map.json"
 if (-not (Test-Path $realnameMapPath)) {
     $realnameMapContent = @'
 {
-  "speaker one": "Alice Carter",
-  "speaker two": "Bob Rivera"
+  "speaker one": "Example Person One",
+  "speaker two": "Example Person Two"
 }
 '@
     [System.IO.File]::WriteAllText($realnameMapPath, $realnameMapContent, $utf8NoBom)

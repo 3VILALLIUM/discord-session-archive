@@ -33,6 +33,8 @@ Optional picker mode:
 python .\src\discord_session_archive.py --pick-folder --clean
 ```
 
+No repository-level `inputs/` folder is required. Use `--input` with any audio file/folder path, or use `--pick-folder` to choose a folder.
+
 ## Bootstrap Script
 
 ```powershell
@@ -40,6 +42,7 @@ python .\src\discord_session_archive.py --pick-folder --clean
 ```
 
 This creates/updates `.venv`, installs requirements, sets hooks, and runs the privacy guard.
+It also initializes local config templates if missing (`.env`, `_local/config/handle_map.json`, `_local/config/realname_map.json`).
 
 ## Local Config Bootstrap
 
@@ -66,6 +69,26 @@ Use real-name mapping:
 
 ```powershell
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-mode real --clean --json
+```
+
+Map files are local-only:
+- `_local/config/handle_map.json`
+- `_local/config/realname_map.json`
+
+Lookup is case-insensitive after trimming. The mapper treats `_` and `-` like spaces.
+
+For reliable replacement, include alias keys (for example: with and without `@`, punctuation variants, spacing variants, nicknames, and common misspellings) that all point to one canonical label.
+
+Example (placeholder data):
+
+```json
+{
+  "example-name": "Example Name",
+  "example_name": "Example Name",
+  "example name": "Example Name",
+  "@example-name": "Example Name",
+  "examplename": "Example Name"
+}
 ```
 
 ## Preflight Checks

@@ -41,6 +41,33 @@ python .\src\discord_session_archive.py --pick-folder --clean
 
 This creates/updates `.venv`, installs requirements, sets hooks, and runs the privacy guard.
 
+## Local Config Bootstrap
+
+```powershell
+.\scripts\init_local_config.ps1
+```
+
+This creates local-only config templates if missing:
+- `.env` (copied from `.env.example`)
+- `_local/config/handle_map.json`
+- `_local/config/realname_map.json`
+
+## Name Mapping Modes
+
+Speaker label mapping is optional and never modifies transcript text content.
+
+Use handle mapping:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-mode handle --clean --json
+```
+
+Use real-name mapping:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-mode real --clean --json
+```
+
 ## Preflight Checks
 
 Run this before real transcription runs:

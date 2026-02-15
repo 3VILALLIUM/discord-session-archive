@@ -74,6 +74,9 @@ DEFAULT_CHUNK_SEC = 120
 DEFAULT_OVERLAP_SEC = 5.0
 DEFAULT_MAX_WORKERS = min(4, os.cpu_count() or 1)
 VERSION = "1.0.0"
+NAME_MAP_MODES = ("none", "handle", "real")
+HANDLE_MAP_PATH = Path("_local/config/handle_map.json")
+REALNAME_MAP_PATH = Path("_local/config/realname_map.json")
 
 LOG_FORMAT = "%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
@@ -124,6 +127,63 @@ def normalize_speaker(name: str) -> str:
     text = name.replace("_", " ").replace("-", " ").strip()
     text = re.sub(r"\s+", " ", text)
     return text or "Unknown Speaker"
+
+
+def normalize_name_map_key(text: str) -> str:
+    key = text.replace("_", " ").replace("-", " ").strip().lower()
+    key = re.sub(r"\s+", " ", key)
+    return key
+
+
+def map_path_for_mode(mode: str) -> Optional[Path]:
+    if mode == "handle":
+        return HANDLE_MAP_PATH
+    if mode == "real":
+        return REALNAME_MAP_PATH
+    return None
+
+
+def load_name_map(mode: str) -> Dict[str, str]:
+    map_path = map_path_for_mode(mode)
+    if map_path is None:
+        return {}
+    if not map_path.exists():
+        print(
+            f"ERROR: name map file not found for mode '{mode}': {map_path}. "
+            "Create it with .\\scripts\\init_local_config.ps1 and retry.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        payload = json.loads(map_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: failed reading name map file {map_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(payload, dict):
+        print(f"ERROR: name map file must be a JSON object: {map_path}", file=sys.stderr)
+        sys.exit(1)
+
+    mapped: Dict[str, str] = {}
+    for raw_key, raw_value in payload.items():
+        if not isinstance(raw_key, str) or not isinstance(raw_value, str):
+            print(f"ERROR: name map entries must be string:string pairs: {map_path}", file=sys.stderr)
+            sys.exit(1)
+        key = normalize_name_map_key(raw_key)
+        value = raw_value.strip()
+        if not key or not value:
+            print(f"ERROR: name map keys/values must be non-empty strings: {map_path}", file=sys.stderr)
+            sys.exit(1)
+        if key in mapped and mapped[key] != value:
+            print(f"ERROR: duplicate normalized key with conflicting values: '{raw_key}'", file=sys.stderr)
+            sys.exit(1)
+        mapped[key] = value
+    return mapped
+
+
+def apply_name_map_to_speaker(label: str, name_map: Dict[str, str]) -> str:
+    if not name_map:
+        return label
+    return name_map.get(normalize_name_map_key(label), label)
 
 
 def clean_text(text: str) -> str:
@@ -294,13 +354,14 @@ def call_whisper(client: OpenAI, chunk: ChunkSpec) -> Dict[str, Any]:
 def transcribe_track(
     client: OpenAI,
     audio_path: Path,
+    name_map: Dict[str, str],
     chunk_sec: int,
     overlap_sec: float,
     max_workers: int,
     dry_run: bool,
     logger: logging.Logger,
 ) -> Dict[str, Any]:
-    speaker = normalize_speaker(audio_path.stem)
+    speaker = apply_name_map_to_speaker(normalize_speaker(audio_path.stem), name_map)
     ensure_pydub_loaded()
     if AudioSegment is None:  # pragma: no cover
         raise RuntimeError("Audio backend unavailable after pydub initialization.")
@@ -420,6 +481,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--pick-folder", action="store_true", help="Open a folder picker for input.")
     parser.add_argument("--output-root", default="_local/runs", help="Output root directory.")
     parser.add_argument("--label", help="Optional label to include in run folder name.")
+    parser.add_argument(
+        "--name-map-mode",
+        choices=NAME_MAP_MODES,
+        default="none",
+        help="Optional speaker-label mapping mode. none=disabled, handle=_local/config/handle_map.json, real=_local/config/realname_map.json.",
+    )
     parser.add_argument("--clean", action="store_true", help="Write cleaned Markdown transcript.")
     parser.add_argument("--json", action="store_true", dest="write_json", help="Write transcript JSON.")
     parser.add_argument("--notebooklm", action="store_true", help="Write NotebookLM-friendly Markdown.")
@@ -446,6 +513,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     script_path = Path(__file__).resolve()
     repo_root = find_repo_root(script_path.parent)
     os.chdir(repo_root)
+    name_map = load_name_map(args.name_map_mode)
 
     input_paths = list(args.input or [])
     if args.pick_folder:
@@ -466,6 +534,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     logger.info("Run ID: %s", run_id)
     logger.info("Inputs: %d audio file(s)", len(audio_files))
+    logger.info("Name map mode: %s", args.name_map_mode)
     for file_path in audio_files:
         logger.info("  %s", file_path)
 
@@ -485,6 +554,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             track = transcribe_track(
                 client=client,
                 audio_path=audio_file,
+                name_map=name_map,
                 chunk_sec=args.chunk_sec,
                 overlap_sec=args.overlap_sec,
                 max_workers=args.max_workers,
@@ -497,7 +567,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             tracks.append(
                 {
                     "source_file": audio_file.name,
-                    "speaker": normalize_speaker(audio_file.stem),
+                    "speaker": apply_name_map_to_speaker(normalize_speaker(audio_file.stem), name_map),
                     "duration_sec": 0.0,
                     "segments": [],
                     "errors": [{"error": f"{exc.__class__.__name__}: {exc}"}],

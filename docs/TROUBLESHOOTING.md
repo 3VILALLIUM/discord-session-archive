@@ -48,6 +48,40 @@ Symptom:
 Fix:
 - Use explicit `--input` path instead of picker mode.
 
+### Name map file missing
+
+Symptom:
+- CLI exits with a missing name map file error when using `--name-map-mode handle` or `--name-map-mode real`.
+
+Fix:
+
+```powershell
+.\scripts\init_local_config.ps1
+```
+
+Then edit:
+- `_local/config/handle_map.json`
+- `_local/config/realname_map.json`
+
+### Invalid name map JSON
+
+Symptom:
+- CLI exits with invalid name map JSON/object error.
+
+Fix:
+- Ensure selected map file is valid JSON.
+- Ensure the top-level value is an object.
+- Ensure all keys and values are non-empty strings.
+
+Valid example:
+
+```json
+{
+  "speaker one": "Alice Carter",
+  "speaker two": "Bob Rivera"
+}
+```
+
 ## Output/Run Failures
 
 ### Existing run directory error

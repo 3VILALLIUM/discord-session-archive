@@ -24,6 +24,7 @@ Do not commit:
 - Audio/video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`, `.ogg`, `.opus`, `.webm`).
 - Logs (`.log`).
 - Secrets (`.env`, `*.key`, `*.pem`).
+- Local identity mapping files (for example `_local/config/handle_map.json` and `_local/config/realname_map.json`).
 - Generated transcript files outside docs/code paths.
 
 ## Guardrails

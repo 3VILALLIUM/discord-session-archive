@@ -44,6 +44,18 @@ No repository-level `inputs/` folder is required. Use `--input` with any audio f
 This creates/updates `.venv`, installs requirements, sets hooks, and runs the privacy guard.
 It also initializes local config templates if missing (`.env`, `_local/config/handle_map.json`, `_local/config/realname_map.json`).
 
+### Bootstrap script actions
+
+`scripts/bootstrap.ps1` runs these actions in order:
+
+1. Create `.venv` if missing.
+2. Install/upgrade pip deps.
+3. Set git hooks path.
+4. Initialize local config templates.
+5. Run privacy guard.
+
+Side effects: may create/update `.venv/`, create `.env` if missing, create `_local/config/handle_map.json` and `_local/config/realname_map.json` if missing, and update local git config (`core.hooksPath`).
+
 ## Local Config Bootstrap
 
 ```powershell

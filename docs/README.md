@@ -20,7 +20,7 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 
 ## Docs Map
 
-- `docs/SETUP.md`: local setup and first run.
+- `docs/SETUP.md`: canonical setup source (automated bootstrap + manual path + first run).
 - `docs/ARCHITECTURE.md`: single-script pipeline design.
 - `docs/PRIVACY.md`: privacy model, guardrails, and audit commands.
 - `SECURITY.md`: private reporting channel for security, vulnerability, and legal concerns.

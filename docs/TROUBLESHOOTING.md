@@ -4,6 +4,53 @@ Back to docs index: `docs/README.md`
 
 ## Setup Failures
 
+### Bootstrap exits with code `2`
+
+Cause:
+- One or more required external dependencies are missing (`python`, `ffmpeg`, `git`) and install mode was not enabled (or install was declined).
+
+Fix:
+1. Re-run bootstrap in install mode:
+
+```powershell
+.\scripts\bootstrap.ps1 -InstallMissingDependencies
+```
+
+or:
+
+```bash
+bash ./scripts/bootstrap.sh --install-missing-dependencies
+```
+
+2. If you prefer no automation, use Manual Setup in `docs/SETUP.md` and install missing dependencies directly.
+
+### Bootstrap exits with code `3`
+
+Cause:
+- Install mode was requested, but no supported package manager was detected on this system.
+
+Fix:
+1. Install dependencies manually (`python`, `ffmpeg`, `git`) using your OS package manager.
+2. Re-run bootstrap without install mode or continue manual setup.
+3. See canonical commands in `docs/SETUP.md` under "Manual Setup (No Bootstrap)".
+
+### Bootstrap exits with code `4`
+
+Cause:
+- Bootstrap attempted dependency installation but all install attempts failed.
+
+Fix:
+1. Run the printed install commands manually to inspect the exact package-manager error.
+2. Resolve package-manager permissions/network/repository issues.
+3. Re-run bootstrap after dependencies are present.
+
+### If bootstrap says a dependency is missing
+
+Map the missing tool to manual install steps in `docs/SETUP.md`:
+- `python` missing: install Python 3.10+ and ensure `python` or `py -3` works.
+- `ffmpeg` missing: install ffmpeg and ensure it is on `PATH`.
+- `git` missing: install Git and verify `git --version`.
+
 ### `OPENAI_API_KEY not set`
 
 Symptom:
@@ -57,6 +104,12 @@ Fix:
 
 ```powershell
 .\scripts\init_local_config.ps1
+```
+
+or:
+
+```bash
+bash ./scripts/init_local_config.sh
 ```
 
 Then edit:

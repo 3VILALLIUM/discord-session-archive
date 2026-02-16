@@ -48,14 +48,17 @@ function Invoke-NativeStep {
 }
 
 function Get-OSFamily {
-    if ($IsWindows) {
-        return "windows"
-    }
-    if ($IsMacOS) {
-        return "macos"
-    }
-    if ($IsLinux) {
-        return "linux"
+    # PowerShell Core 6+ has $IsWindows, $IsMacOS, $IsLinux
+    # Windows PowerShell 5.1 does not, so we need fallback detection
+    if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
+        if ($IsWindows) { return "windows" }
+        if ($IsMacOS) { return "macos" }
+        if ($IsLinux) { return "linux" }
+    } else {
+        # Windows PowerShell 5.1 fallback (only runs on Windows)
+        if ($env:OS -match "Windows") {
+            return "windows"
+        }
     }
     return "unknown"
 }

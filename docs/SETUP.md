@@ -14,6 +14,7 @@ cmd /c findstr /n ".*" scripts\bootstrap.ps1
 cmd /c findstr /n ".*" scripts\init_local_config.ps1
 cmd /c findstr /n ".*" scripts\privacy_guard_check.ps1
 cmd /c findstr /n ".*" .githooks\pre-commit
+cmd /c findstr /n ".*" .githooks\pre-push
 ```
 
 Audit-first commands (bash):

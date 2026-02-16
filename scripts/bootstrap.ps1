@@ -56,7 +56,7 @@ function Get-OSFamily {
         if ($IsLinux) { return "linux" }
     } else {
         # Windows PowerShell 5.1 fallback (only runs on Windows)
-        if ($env:OS -match "Windows" -or $PSVersionTable.PSVersion.Major -le 5) {
+        if ($env:OS -match "Windows") {
             return "windows"
         }
     }

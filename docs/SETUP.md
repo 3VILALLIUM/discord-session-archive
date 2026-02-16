@@ -16,6 +16,17 @@ cmd /c findstr /n ".*" scripts\privacy_guard_check.ps1
 cmd /c findstr /n ".*" .githooks\pre-commit
 ```
 
+Audit-first commands (bash):
+
+```bash
+git status --short
+cat -n scripts/bootstrap.sh
+cat -n scripts/init_local_config.sh
+cat -n scripts/privacy_guard_check.sh
+cat -n .githooks/pre-commit
+cat -n .githooks/pre-push
+```
+
 ## Setup Modes
 
 - Automated setup (recommended): `scripts/bootstrap.ps1` (Windows PowerShell) or `scripts/bootstrap.sh` (bash).

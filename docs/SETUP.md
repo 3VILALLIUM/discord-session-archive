@@ -116,6 +116,13 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
 ### 3. Configure hooks
 
 ```powershell
@@ -129,6 +136,10 @@ Expected value: `.githooks`
 
 ```powershell
 .\scripts\init_local_config.ps1
+```
+
+```bash
+bash ./scripts/init_local_config.sh
 ```
 
 This creates local-only files if missing:

@@ -594,14 +594,63 @@ def suppress_repeated_short_line_noise(segments: List[Dict[str, Any]], strict: b
     max_short_duration_sec = 2.6 if not strict else 2.2
     long_one_word_repeat_window_sec = 35.0 if not strict else 50.0
     long_one_word_min_occurrences = 5 if not strict else 4
+    strong_one_word_repeat_window_sec = 90.0 if not strict else 120.0
+    strong_one_word_min_occurrences = 10 if not strict else 8
+    strong_short_phrase_repeat_window_sec = 90.0 if not strict else 120.0
+    strong_short_phrase_min_occurrences = 6 if not strict else 5
+    strong_one_word_tokens = {"you", "ok", "okay"}
+    strong_short_phrases = {"thank you"}
+    very_aggressive_token_repeat_windows: Dict[str, float] = {
+        "you": 180.0 if not strict else 240.0,
+        "ok": 120.0 if not strict else 160.0,
+        "okay": 120.0 if not strict else 160.0,
+    }
+    very_aggressive_token_min_occurrences: Dict[str, int] = {
+        "you": 8 if not strict else 6,
+        "ok": 10 if not strict else 8,
+        "okay": 10 if not strict else 8,
+    }
+    high_frequency_cap_min_occurrences: Dict[str, int] = {
+        "you": 8 if not strict else 6,
+        "ok": 7 if not strict else 6,
+        "okay": 7 if not strict else 6,
+        "thank you": 4 if not strict else 3,
+    }
+    high_frequency_cap_max_kept: Dict[str, int] = {
+        "you": 3,
+        "ok": 3,
+        "okay": 3,
+        "thank you": 2,
+    }
 
     one_word_counts: Dict[Tuple[str, str], int] = {}
+    short_line_key_counts: Dict[Tuple[str, str], int] = {}
     for seg in segments:
-        token_opt = extract_single_word_token(str(seg.get("text", "")))
+        speaker = str(seg.get("speaker", ""))
+        text = str(seg.get("text", ""))
+        norm = normalize_for_dedupe(text)
+        if not norm:
+            continue
+
+        start = float(seg.get("start", 0.0))
+        end = float(seg.get("end", start))
+        if end < start:
+            end = start
+        duration = end - start
+        words = count_word_tokens(text)
+
+        token_opt = extract_single_word_token(text)
+        is_low_info_one_word = token_opt is not None and token_opt in LOW_INFORMATION_ONE_WORD_TOKENS
+        is_targeted_phrase = norm in strong_short_phrases and words <= 3
+        is_short_line = words <= 4 and duration <= max_short_duration_sec
+
+        if is_short_line or is_low_info_one_word or is_targeted_phrase:
+            short_key = (speaker, norm)
+            short_line_key_counts[short_key] = short_line_key_counts.get(short_key, 0) + 1
+
         if token_opt is None:
             continue
         token: str = token_opt
-        speaker = str(seg.get("speaker", ""))
         speaker_token_key: Tuple[str, str] = (speaker, token)
         one_word_counts[speaker_token_key] = one_word_counts.get(speaker_token_key, 0) + 1
 
@@ -620,18 +669,37 @@ def suppress_repeated_short_line_noise(segments: List[Dict[str, Any]], strict: b
             end = start
         duration = end - start
         words = count_word_tokens(text)
+        short_token = extract_single_word_token(text)
+        is_low_info_one_word = short_token is not None and short_token in LOW_INFORMATION_ONE_WORD_TOKENS
+        is_targeted_phrase = norm in strong_short_phrases and words <= 3
 
         key = (speaker, norm)
         is_short_line = words <= 4 and duration <= max_short_duration_sec
-        if is_short_line:
+        if is_short_line or is_low_info_one_word or is_targeted_phrase:
             effective_window = repeat_window_sec
-            short_token = extract_single_word_token(text)
             if (
-                short_token is not None
-                and short_token in LOW_INFORMATION_ONE_WORD_TOKENS
+                is_low_info_one_word
+                and short_token is not None
                 and one_word_counts.get((speaker, short_token), 0) >= long_one_word_min_occurrences
             ):
                 effective_window = long_one_word_repeat_window_sec
+                if (
+                    short_token in strong_one_word_tokens
+                    and one_word_counts.get((speaker, short_token), 0) >= strong_one_word_min_occurrences
+                ):
+                    effective_window = max(effective_window, strong_one_word_repeat_window_sec)
+                if (
+                    short_token in very_aggressive_token_repeat_windows
+                    and one_word_counts.get((speaker, short_token), 0)
+                    >= very_aggressive_token_min_occurrences.get(short_token, 999_999)
+                ):
+                    effective_window = max(
+                        effective_window,
+                        very_aggressive_token_repeat_windows[short_token],
+                    )
+
+            if norm in strong_short_phrases and short_line_key_counts.get(key, 0) >= strong_short_phrase_min_occurrences:
+                effective_window = max(effective_window, strong_short_phrase_repeat_window_sec)
 
             prev = last_kept_start.get(key)
             if prev is not None and start - prev < effective_window:
@@ -639,7 +707,26 @@ def suppress_repeated_short_line_noise(segments: List[Dict[str, Any]], strict: b
 
         kept.append(seg)
         last_kept_start[key] = start
-    return kept
+    if not kept:
+        return kept
+
+    capped: List[Dict[str, Any]] = []
+    capped_seen: Dict[Tuple[str, str], int] = {}
+    for seg in kept:
+        speaker = str(seg.get("speaker", ""))
+        norm = normalize_for_dedupe(str(seg.get("text", "")))
+        if not norm:
+            continue
+        key = (speaker, norm)
+        trigger = high_frequency_cap_min_occurrences.get(norm)
+        cap = high_frequency_cap_max_kept.get(norm)
+        if trigger is not None and cap is not None and short_line_key_counts.get(key, 0) >= trigger:
+            seen = capped_seen.get(key, 0)
+            if seen >= cap:
+                continue
+            capped_seen[key] = seen + 1
+        capped.append(seg)
+    return capped
 
 
 def apply_quality_filter(segments: List[Dict[str, Any]], mode: str) -> List[Dict[str, Any]]:

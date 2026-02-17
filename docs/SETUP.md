@@ -33,123 +33,73 @@ cat -n .githooks/pre-push
 - Automated setup (recommended): `scripts/bootstrap.ps1` (Windows PowerShell) or `scripts/bootstrap.sh` (bash).
 - Manual setup: explicit commands with no bootstrap script execution.
 
-Both paths keep local runtime outputs under `_local/` and never require committing those files.
+After setup completes, the repo is ready to run after you set `OPENAI_API_KEY` in `.env`.
 
 ## Automated Setup (Bootstrap)
 
-After successful bootstrap, your local environment is ready for first run:
-- `.venv` is created/updated
-- Python requirements are installed
-- git hooks path is configured
-- local templates are initialized (`.env`, `_local/config/handle_map.json`, `_local/config/realname_map.json`)
-- privacy guard is run
-
-You still must set a real `OPENAI_API_KEY` in `.env`.
-
-### 1. Preview Planned Actions (No Changes)
-
-PowerShell:
+PowerShell plan mode:
 
 ```powershell
 .\scripts\bootstrap.ps1 -Plan
 ```
 
-bash:
+bash plan mode:
 
 ```bash
 bash ./scripts/bootstrap.sh --plan
 ```
 
-`-Plan` / `--plan` prints actions and exits without modifying files.
-
-### 2. Default Run (Check-Only for Missing Dependencies)
-
-PowerShell:
+PowerShell default run:
 
 ```powershell
 .\scripts\bootstrap.ps1
 ```
 
-bash:
+bash default run:
 
 ```bash
 bash ./scripts/bootstrap.sh
 ```
 
-Default mode detects missing external dependencies (`python`, `ffmpeg`, `git`) and exits with code `2` with remediation instructions.
+Default mode checks dependencies and exits with code `2` if `python`, `ffmpeg`, or `git` are missing.
 
-### 3. Opt-In Install Missing Dependencies
-
-PowerShell:
+Opt-in dependency install:
 
 ```powershell
 .\scripts\bootstrap.ps1 -InstallMissingDependencies
-```
-
-PowerShell (non-interactive confirmation):
-
-```powershell
 .\scripts\bootstrap.ps1 -InstallMissingDependencies -Yes
 ```
 
-bash:
-
 ```bash
 bash ./scripts/bootstrap.sh --install-missing-dependencies
-```
-
-bash (non-interactive confirmation):
-
-```bash
 bash ./scripts/bootstrap.sh --install-missing-dependencies --yes
 ```
 
-Install mode is explicit opt-in only. Scripts print the exact install command before execution.
-
-### Bootstrap Exit Codes
+Bootstrap exit codes:
 
 - `0`: success
-- `2`: missing dependencies and install mode disabled (or user declined install)
-- `3`: no supported package manager found for dependency install mode
-- `4`: dependency installation was attempted but failed
+- `2`: missing dependencies and install mode disabled/declined
+- `3`: no supported package manager found
+- `4`: dependency install attempted but failed
 
-### Bootstrap Action Table
+Bootstrap done state:
 
-| Step | Why it runs | Side effects | Network |
-|---|---|---|---|
-| Detect external dependencies (`python`, `ffmpeg`, `git`) | Prevent partial setup/fail-late behavior | None | No |
-| Optional dependency install (`-InstallMissingDependencies` / `--install-missing-dependencies`) | White-glove setup for beginners | System package installs | Yes |
-| Create `.venv` if missing | Isolate Python dependencies locally | May create `.venv/` | No |
-| Install/upgrade Python packages | Ensure runtime requirements are present | Updates venv site-packages | Yes |
-| Configure git hooks path | Enforce local privacy guard hook | Updates local git config (`core.hooksPath`) | No |
-| Initialize local config templates | Make repo runnable with local-only defaults | May create `.env` and `_local/config/*.json` | No |
-| Print Python version | Confirm runtime path and version | None | No |
-| Run privacy guard | Catch forbidden tracked files early | None | No |
-| Print next steps | Keep first run explicit | None | No |
-
-### Dependency Installer Fallback Chains
-
-- Windows: `winget` -> `choco` -> `scoop`
-- macOS: `brew` -> `port`
-- Linux: `apt-get` -> `dnf` -> `yum` -> `pacman` -> `zypper`
-
-Managed dependencies in install mode:
-- Python
-- ffmpeg
-- Git
+- `.venv` exists and requirements installed
+- `core.hooksPath` is `.githooks`
+- `.env` exists
+- `_local/config/name_replace_map.json` exists
 
 ## Manual Setup (No Bootstrap)
 
-Use this path if you prefer explicit step-by-step control.
+### 1. Install dependencies
 
-### 1. Install External Dependencies
+Install:
 
-Install all three:
 - Python 3.10+
 - ffmpeg (on `PATH`)
 - Git
 
-Windows examples (choose one manager):
+Examples (Windows):
 
 ```powershell
 winget install --id Python.Python.3 -e --source winget
@@ -157,37 +107,7 @@ winget install --id Gyan.FFmpeg -e --source winget
 winget install --id Git.Git -e --source winget
 ```
 
-```powershell
-choco install -y python ffmpeg git
-```
-
-```powershell
-scoop install python ffmpeg git
-```
-
-macOS examples:
-
-```bash
-brew install python ffmpeg git
-```
-
-```bash
-sudo port install python311 ffmpeg git
-```
-
-Linux examples:
-
-```bash
-sudo apt-get install -y python3 python3-venv ffmpeg git
-```
-
-```bash
-sudo dnf install -y python3 ffmpeg git
-```
-
-### 2. Create Virtual Environment and Install Requirements
-
-PowerShell:
+### 2. Create venv and install requirements
 
 ```powershell
 python -m venv .venv
@@ -196,16 +116,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-bash:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 3. Configure Hooks
+### 3. Configure hooks
 
 ```powershell
 git config core.hooksPath .githooks
@@ -214,110 +125,108 @@ git config --get core.hooksPath
 
 Expected value: `.githooks`
 
-### 4. Initialize Local Config Templates
-
-PowerShell:
+### 4. Initialize local templates
 
 ```powershell
 .\scripts\init_local_config.ps1
 ```
 
-bash:
+This creates local-only files if missing:
 
-```bash
-bash ./scripts/init_local_config.sh
-```
-
-This creates local-only templates if missing:
 - `.env`
-- `_local/config/handle_map.json`
-- `_local/config/realname_map.json`
+- `_local/config/name_replace_map.json`
 
-### 5. Set API Key
+### 5. Set API key
 
-If `.env` does not exist yet:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Then edit `.env`:
+Edit `.env`:
 
 ```env
 OPENAI_API_KEY=your_real_key_here
 ```
 
-`.env` is local-only and must never be committed.
+## Name Replacement Map
 
-### 6. First Run
+Use one unified map file:
 
-```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --clean --json --notebooklm
-```
+- `_local/config/name_replace_map.json`
 
-Optional folder picker:
+The same map handles:
 
-```powershell
-python .\src\discord_session_archive.py --pick-folder --clean
-```
+- Discord handle aliases
+- spoken-name aliases
 
-No repository-level `inputs/` folder is required. Use `--input` with any audio file/folder path.
+The default mode is `--name-map-mode replace`.
+Use `--name-map-mode none` to disable replacements.
 
-## Name Mapping Modes (Optional)
+## Running the CLI
 
-Speaker label mapping is optional and does not modify transcript body text.
-
-Handle map mode:
+Default newbie run (no args, opens folder picker):
 
 ```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-mode handle --clean --json
+python .\src\discord_session_archive.py
 ```
 
-Real-name map mode:
+Manual path mode (optional customization):
 
 ```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-mode real --clean --json
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
 ```
 
-Map files:
-- `_local/config/handle_map.json`
-- `_local/config/realname_map.json`
+Useful runtime flags:
 
-Lookup is case-insensitive after trimming and treats `_` and `-` as spaces.
-Reserved keys beginning with `__comment` are ignored.
+- `--input <path>` bypass picker and use explicit path(s)
+- `--pick-folder` explicitly force picker mode
+- `--language auto|<code>` default `auto`
+- `--quality-filter balanced|strict|off` default `balanced`
+- `--track-workers 4` track-level parallelism
+- `--api-workers 4` global paid API concurrency cap
+- `--max-workers <n>` per-track chunk worker pool
+- `--name-map-mode none` disables replacement map
+- `--force` overwrite existing run directory
 
-## Preflight
-
-Run preflight before real transcription runs:
+Example (faster + force English):
 
 ```powershell
-.\scripts\preflight.ps1
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language en --track-workers 4 --api-workers 4
 ```
 
-## Done State Checklist
+## Output Contract
 
-You are ready to run when all items below are true:
-- `python --version` (or `py -3 --version`) works
-- `ffmpeg -version` works
-- `git --version` works
-- `.venv` exists
-- `pip install -r requirements.txt` completed
-- `git config --get core.hooksPath` returns `.githooks`
-- `.env` exists with real `OPENAI_API_KEY`
-- `_local/config/handle_map.json` exists
-- `_local/config/realname_map.json` exists
-
-## Output Location
-
-By default, outputs are written under:
+Run directory:
 
 ```text
 _local/runs/<run_id>/
 ```
 
-Typical files:
-- `transcript.md`
-- `transcript.cleaned.md` (if `--clean`)
-- `transcript.json` (if `--json`)
-- `notebooklm.md` (if `--notebooklm`)
-- `run.log`
+Saved artifacts per run:
+
+```text
+_local/runs/<run_id>/<run_id>_transcript.md
+_local/runs/<run_id>/<run_id>_log.md
+```
+
+No JSON and no NotebookLM file are generated.
+
+Run ID precedence:
+
+1. `--label` (highest precedence)
+2. Craig `info.txt` (`<Guild_Name>_<StartTimeISOWithColonsReplacedByDash>`)
+3. UTC timestamp fallback
+
+Discord-style long numeric guild IDs found in `Guild` are stripped from filename naming.
+
+If `info.txt` contains Craig notes (including timestamped note lines), they are included in transcript frontmatter under `craig_notes`.
+Do not put personal or sensitive information in Craig notes unless you want it to appear in the transcript output.
+
+## Done State Checklist
+
+You are ready when:
+
+- `python --version` works
+- `ffmpeg -version` works
+- `git --version` works
+- `.venv` exists
+- `pip install -r requirements.txt` completed
+- `git config --get core.hooksPath` returns `.githooks`
+- `.env` has real `OPENAI_API_KEY`
+- `_local/config/name_replace_map.json` exists

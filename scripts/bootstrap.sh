@@ -244,8 +244,7 @@ show_bootstrap_plan() {
   echo "- create or update .venv/"
   echo "- local git config update: core.hooksPath"
   echo "- create .env if missing"
-  echo "- create _local/config/handle_map.json if missing"
-  echo "- create _local/config/realname_map.json if missing"
+  echo "- create _local/config/name_replace_map.json if missing"
   echo
   if [[ -z "$missing" ]]; then
     echo "Dependency status: all required external dependencies are present."
@@ -432,4 +431,4 @@ echo
 echo "Bootstrap completed."
 echo "Next steps:"
 echo "1. Edit .env and set OPENAI_API_KEY"
-echo "2. Run: python ./src/discord_session_archive.py --input /path/to/CraigExport --clean --json --notebooklm"
+echo "2. Run: python ./src/discord_session_archive.py"

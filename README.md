@@ -24,6 +24,12 @@ All setup instructions are canonical in `docs/SETUP.md`, including:
 - first-run command and verification checklist
 
 Use `docs/SETUP.md` for all setup and first-run steps to avoid documentation drift.
+Current runtime behavior is one-pass with two saved run artifacts:
+- `<run_id>_transcript.md`
+- `<run_id>_log.md`
+Default CLI behavior is newbie-first: run with no input args and it opens the folder picker.
+If Craig `info.txt` contains notes, they are included in transcript frontmatter (`craig_notes`).
+Do not put personal/sensitive data in Craig notes unless you want it in transcript outputs.
 
 ## Privacy Boundary
 

@@ -771,6 +771,82 @@ def test_quality_filter_suppresses_high_frequency_low_information_token_over_lon
     assert [seg["start"] for seg in kept] == [0.0, 40.0, 80.0]
 
 
+def test_quality_filter_more_aggressively_throttles_very_high_frequency_you():
+    segments = []
+    for start in (0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0):
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.6,
+                "speaker": "Azure",
+                "text": "you",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["speaker"] == "Azure" and seg["text"] == "you"]
+    assert [seg["start"] for seg in kept] == [0.0, 180.0]
+
+
+def test_quality_filter_caps_sparse_high_frequency_you_even_when_window_would_keep_more():
+    segments = []
+    for start in (0.0, 200.0, 400.0, 600.0, 800.0, 1000.0, 1200.0, 1400.0, 1600.0):
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.6,
+                "speaker": "Azure",
+                "text": "you",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["speaker"] == "Azure" and seg["text"] == "you"]
+    assert [seg["start"] for seg in kept] == [0.0, 200.0, 400.0]
+
+
+def test_quality_filter_suppresses_repeated_thank_you_bursts():
+    segments = []
+    for start in (0.0, 30.0, 60.0, 90.0, 120.0, 150.0, 180.0, 210.0):
+        segments.append(
+            {
+                "start": start,
+                "end": start + 1.0,
+                "speaker": "Cadence Clocksbane",
+                "text": "Thank you.",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["speaker"] == "Cadence Clocksbane" and seg["text"] == "Thank you."]
+    assert [seg["start"] for seg in kept] == [0.0, 90.0]
+
+
+def test_quality_filter_caps_high_frequency_okay_per_speaker():
+    segments = []
+    for start in (0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0):
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.6,
+                "speaker": "Mal al'Cid",
+                "text": "Okay.",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["speaker"] == "Mal al'Cid" and seg["text"] == "Okay."]
+    assert [seg["start"] for seg in kept] == [0.0, 40.0, 80.0]
+
+
 def test_quality_filter_keeps_low_information_token_when_not_high_frequency():
     segments = []
     for start in (0.0, 20.0, 40.0, 60.0):

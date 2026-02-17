@@ -26,3 +26,8 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 - `SECURITY.md`: private reporting channel for security, vulnerability, and legal concerns.
 - `docs/TROUBLESHOOTING.md`: common failures and fixes.
 - `docs/POLICY.md`: no-community-input and support policy.
+
+## Transcript Quality Note
+
+`whisper-1` frequently misidentifies background noise as words and will try to transcribe them.
+This project corrects for that with post-processing heuristics that suppress repeated low-information artifacts (for example repetitive `you`, `okay`, or `thank you` bursts), remove overlap duplicates, and keep higher-signal lines.

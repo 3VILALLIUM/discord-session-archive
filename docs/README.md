@@ -20,8 +20,8 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 
 ## Docs Map
 
-- `docs/SETUP.md`: canonical setup source (automated bootstrap + manual path + first run).
-- `docs/ARCHITECTURE.md`: single-script pipeline design.
+- `docs/SETUP.md`: canonical setup source (automated bootstrap + manual path + default picker run).
+- `docs/ARCHITECTURE.md`: single-run architecture and run artifact contract.
 - `docs/PRIVACY.md`: privacy model, guardrails, and audit commands.
 - `SECURITY.md`: private reporting channel for security, vulnerability, and legal concerns.
 - `docs/TROUBLESHOOTING.md`: common failures and fixes.

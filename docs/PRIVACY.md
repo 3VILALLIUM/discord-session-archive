@@ -10,6 +10,9 @@ This workflow has baseline privacy risk:
 
 Use only data you are allowed to process and share.
 
+Craig `info.txt` notes are copied into transcript frontmatter (`craig_notes`) when present.
+Do not enter personal or sensitive information in Craig notes unless you intend to include it in transcript artifacts.
+
 ## Legal Compliance
 
 Recording, consent, and transcription laws vary by jurisdiction and use case.
@@ -24,7 +27,7 @@ Do not commit:
 - Audio/video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`, `.ogg`, `.opus`, `.webm`).
 - Logs (`.log`).
 - Secrets (`.env`, `*.key`, `*.pem`).
-- Local identity mapping files (for example `_local/config/handle_map.json` and `_local/config/realname_map.json`).
+- Local identity mapping files (for example `_local/config/name_replace_map.json`).
 - Generated transcript files outside docs/code paths.
 
 ## Guardrails

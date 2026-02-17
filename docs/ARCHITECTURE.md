@@ -9,17 +9,32 @@ Back to docs index: `docs/README.md`
 - `src/discord_session_archive.py`
 
 Flow:
-1. Discover audio files from a Craig export folder or direct file paths.
-2. Split audio into overlapping chunks.
-3. Transcribe chunks with OpenAI `whisper-1`.
-4. Merge and sort timestamped segments.
-5. Write local outputs (`.md`, optional cleaned `.md`, optional `.json`, optional NotebookLM `.md`).
 
-## Data Flow
+1. Select input folder from picker by default (or use `--input` to provide paths manually), then discover audio files.
+2. Parse Craig `info.txt` (if available) for metadata, run naming, and Craig notes.
+3. Split each track into overlapping chunks.
+4. Transcribe chunks with OpenAI `whisper-1`.
+5. Merge segments, apply quality filtering, and dedupe overlap artifacts.
+6. Apply unified speaker/name replacement (`name_replace_map.json`).
+7. Write cleaned transcript and run log files.
 
-`input folder/files` -> `chunking + whisper-1` -> `_local/runs/<run_id>/`
+## Concurrency Model
 
-Generated artifacts are local-only by policy.
+There are three concurrency controls:
+
+- `--track-workers`: number of tracks processed in parallel.
+- `--max-workers`: per-track chunk worker pool.
+- `--api-workers`: global semaphore cap for concurrent paid API calls.
+
+The global cap prevents API overrun even when multiple tracks/chunks are active.
+
+## Naming and Run IDs
+
+Run ID precedence:
+
+1. `--label` (highest precedence)
+2. Craig `info.txt` metadata as `<Guild_Name>_<StartTimeISOWithColonsReplacedByDash>`
+3. UTC timestamp fallback
 
 ## Output Contract
 
@@ -29,16 +44,29 @@ Default output root:
 _local/runs/<run_id>/
 ```
 
-Files:
-- `transcript.md` (always)
-- `transcript.cleaned.md` (optional)
-- `transcript.json` (optional)
-- `notebooklm.md` (optional)
-- `run.log`
+Saved artifacts per run:
+
+```text
+_local/runs/<run_id>/<run_id>_transcript.md
+_local/runs/<run_id>/<run_id>_log.md
+```
+
+No JSON, NotebookLM, or raw transcript file is generated.
+
+## Replacement Map Contract
+
+Runtime supports one map file:
+
+- `_local/config/name_replace_map.json`
+
+`--name-map-mode` supports only:
+
+- `replace` (default)
+- `none`
 
 ## Testing Surface
 
-Automated tests target the primary script:
+Primary tests:
 
 - `tests/test_discord_session_archive.py`
 

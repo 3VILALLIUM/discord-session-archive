@@ -2,12 +2,12 @@
 """
 discord_session_archive.py
 
-Turnkey Craig -> whisper-1 -> transcript pipeline.
+Single-run Craig -> whisper-1 -> cleaned transcript pipeline.
 
-This script is source-agnostic and domain-agnostic:
-- Accepts Craig export folders or direct audio file paths.
-- Produces timestamped Markdown transcripts.
-- Optionally writes cleaned Markdown, JSON, and NotebookLM-friendly Markdown.
+User-facing behavior:
+- One paid transcription pass.
+- One cleaned transcript plus one run log file in _local/runs/<run_id>/
+- Unified name replacement map: _local/config/name_replace_map.json
 """
 
 from __future__ import annotations
@@ -21,10 +21,11 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
-from dataclasses import dataclass
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -72,11 +73,49 @@ except Exception:  # pragma: no cover
 SUPPORTED_EXTS = {".aac", ".flac", ".m4a", ".mp3", ".wav"}
 DEFAULT_CHUNK_SEC = 120
 DEFAULT_OVERLAP_SEC = 5.0
-DEFAULT_MAX_WORKERS = min(4, os.cpu_count() or 1)
-VERSION = "1.0.0"
-NAME_MAP_MODES = ("none", "handle", "real")
-HANDLE_MAP_PATH = Path("_local/config/handle_map.json")
-REALNAME_MAP_PATH = Path("_local/config/realname_map.json")
+DEFAULT_MAX_WORKERS = min(4, os.cpu_count() or 1)  # per-track chunk pool
+DEFAULT_TRACK_WORKERS = 4  # track-level pool
+DEFAULT_API_WORKERS = 4  # global paid call cap
+VERSION = "2.0.0"
+NAME_MAP_MODES = ("replace", "none")
+QUALITY_FILTER_MODES = ("balanced", "strict", "off")
+NAME_REPLACE_MAP_PATH = Path("_local/config/name_replace_map.json")
+LANGUAGE_CODE_RE = re.compile(r"^[a-z]{2,3}(?:-[a-z]{2})?$", flags=re.IGNORECASE)
+LOW_SIGNAL_ONE_WORD_TOKENS = {
+    "ah",
+    "eh",
+    "er",
+    "hmm",
+    "huh",
+    "mhm",
+    "mm",
+    "uh",
+    "uhh",
+    "um",
+    "you",
+}
+LANGUAGE_NAME_TO_CODE = {
+    "arabic": "ar",
+    "chinese": "zh",
+    "dutch": "nl",
+    "english": "en",
+    "french": "fr",
+    "german": "de",
+    "greek": "el",
+    "hebrew": "he",
+    "hindi": "hi",
+    "italian": "it",
+    "japanese": "ja",
+    "korean": "ko",
+    "polish": "pl",
+    "portuguese": "pt",
+    "russian": "ru",
+    "spanish": "es",
+    "swedish": "sv",
+    "turkish": "tr",
+    "ukrainian": "uk",
+    "welsh": "cy",
+}
 
 LOG_FORMAT = "%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
@@ -91,6 +130,19 @@ class ChunkSpec:
     offset_sec: float
 
 
+@dataclass
+class CraigInfoMetadata:
+    path: Optional[Path] = None
+    guild: Optional[str] = None
+    start_time_raw: Optional[str] = None
+    start_time_utc: Optional[datetime] = None
+    requester: Optional[str] = None
+    channel: Optional[str] = None
+    tracks: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
+    raw_fields: Dict[str, List[str]] = field(default_factory=dict)
+
+
 def find_repo_root(start: Path) -> Path:
     cur = start
     for _ in range(12):
@@ -102,12 +154,8 @@ def find_repo_root(start: Path) -> Path:
     return start
 
 
-def format_timestamp(seconds: float) -> str:
-    total = max(0, int(seconds))
-    hh = total // 3600
-    mm = (total % 3600) // 60
-    ss = total % 60
-    return f"{hh:02}:{mm:02}:{ss:02}"
+def format_segment_timestamp(seconds: float) -> str:
+    return f"{max(0.0, seconds):.2f}s"
 
 
 def sanitize_label(label: str) -> str:
@@ -116,21 +164,37 @@ def sanitize_label(label: str) -> str:
     return clean or "run"
 
 
-def build_run_id(label: Optional[str]) -> str:
-    stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    if label:
-        return f"{sanitize_label(label)}_{stamp}"
-    return stamp
+def sanitize_run_component(text: str) -> str:
+    clean = text.strip()
+    clean = re.sub(r"[:/\\|?*<>\"']+", "-", clean)
+    clean = re.sub(r"\s+", "_", clean)
+    clean = re.sub(r"[^A-Za-z0-9._-]+", "", clean)
+    clean = re.sub(r"_+", "_", clean)
+    clean = clean.strip("._-")
+    return clean or "session"
+
+
+def strip_discord_snowflake_tokens(text: str) -> str:
+    # Remove standalone Discord-like snowflake IDs from human-readable guild names.
+    cleaned = re.sub(r"(?<!\d)\d{17,20}(?!\d)", " ", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or text
 
 
 def normalize_speaker(name: str) -> str:
     text = name.replace("_", " ").replace("-", " ").strip()
     text = re.sub(r"\s+", " ", text)
+    # Craig per-track stems can look like "<track_index> <handle> <channel_index>".
+    wrapped = re.match(r"^\d+\s+(.+?)\s+\d+$", text)
+    if wrapped:
+        text = wrapped.group(1).strip()
     return text or "Unknown Speaker"
 
 
 def normalize_name_map_key(text: str) -> str:
     key = text.replace("_", " ").replace("-", " ").strip().lower()
+    # Treat @handle and handle as the same alias key.
+    key = re.sub(r"(^|\s)@+", r"\1", key)
     key = re.sub(r"\s+", " ", key)
     return key
 
@@ -140,10 +204,10 @@ def is_name_map_comment_key(text: str) -> bool:
 
 
 def map_path_for_mode(mode: str) -> Optional[Path]:
-    if mode == "handle":
-        return HANDLE_MAP_PATH
-    if mode == "real":
-        return REALNAME_MAP_PATH
+    if mode == "replace":
+        return NAME_REPLACE_MAP_PATH
+    if mode == "none":
+        return None
     return None
 
 
@@ -192,39 +256,236 @@ def load_name_map(mode: str) -> Dict[str, str]:
 def apply_name_map_to_speaker(label: str, name_map: Dict[str, str]) -> str:
     if not name_map:
         return label
-    return name_map.get(normalize_name_map_key(label), label)
+    direct = name_map.get(normalize_name_map_key(label))
+    if direct:
+        return direct
+
+    # Fallback for decorated labels that still contain wrapper tokens.
+    best: Optional[Tuple[int, str]] = None
+    for alias, replacement in name_map.items():
+        pattern = compile_alias_pattern(alias)
+        if pattern is None or not pattern.search(label):
+            continue
+        score = len(alias)
+        if best is None or score > best[0]:
+            best = (score, replacement)
+    return best[1] if best else label
+
+
+def compile_alias_pattern(alias: str) -> Optional[re.Pattern[str]]:
+    key = normalize_name_map_key(alias)
+    if not key:
+        return None
+    tokens = [re.escape(token) for token in key.split(" ") if token]
+    if not tokens:
+        return None
+    first = rf"@?{tokens[0]}"
+    joined = first if len(tokens) == 1 else first + r"[-_\s]*" + r"[-_\s]*".join(tokens[1:])
+    return re.compile(rf"(?<![A-Za-z0-9]){joined}(?![A-Za-z0-9])", flags=re.IGNORECASE)
+
+
+def apply_name_map_to_text(text: str, name_map: Dict[str, str]) -> str:
+    if not text or not name_map:
+        return text
+    updated = text
+    for alias, replacement in sorted(name_map.items(), key=lambda item: len(item[0]), reverse=True):
+        pattern = compile_alias_pattern(alias)
+        if pattern is None:
+            continue
+        updated = pattern.sub(replacement, updated)
+    return updated
+
+
+def apply_name_map_to_metadata(meta: CraigInfoMetadata, name_map: Dict[str, str]) -> CraigInfoMetadata:
+    if not name_map:
+        return meta
+    return CraigInfoMetadata(
+        path=meta.path,
+        guild=apply_name_map_to_text(meta.guild or "", name_map) or meta.guild,
+        start_time_raw=meta.start_time_raw,
+        start_time_utc=meta.start_time_utc,
+        requester=apply_name_map_to_text(meta.requester or "", name_map) or meta.requester,
+        channel=apply_name_map_to_text(meta.channel or "", name_map) or meta.channel,
+        tracks=[apply_name_map_to_text(item, name_map) for item in meta.tracks],
+        notes=[apply_name_map_to_text(item, name_map) for item in meta.notes],
+        raw_fields={key: [apply_name_map_to_text(item, name_map) for item in values] for key, values in meta.raw_fields.items()},
+    )
 
 
 def clean_text(text: str) -> str:
     stripped = re.sub(r"\s+", " ", text).strip()
-    if stripped.lower() in {"uh", "um", "er", "ah"}:
-        return ""
     stripped = stripped.replace("`", "'")
     stripped = re.sub(r"[^\x09\x0A\x0D\x20-\x7E]+", "", stripped)
-    return stripped.strip()
+    stripped = stripped.strip()
+    if stripped.lower() in {"uh", "um", "er", "ah"}:
+        return ""
+    return stripped
+
+
+def normalize_for_dedupe(text: str) -> str:
+    collapsed = re.sub(r"[^a-z0-9]+", " ", text.lower())
+    return re.sub(r"\s+", " ", collapsed).strip()
+
+
+def extract_single_word_token(text: str) -> Optional[str]:
+    tokens = re.findall(r"[a-z0-9']+", text.lower())
+    if len(tokens) != 1:
+        return None
+    return tokens[0]
+
+
+def looks_hallucinated_text(text: str, strict: bool) -> bool:
+    lowered = text.lower().strip()
+    if not lowered:
+        return True
+
+    tokens = re.findall(r"[a-z0-9']+", lowered)
+    if len(tokens) >= 8:
+        counts = Counter(tokens)
+        if counts.most_common(1)[0][1] / len(tokens) > (0.50 if strict else 0.65):
+            return True
+    if len(tokens) >= 10 and len(set(tokens)) <= 2:
+        return True
+
+    squashed = re.sub(r"\s+", "", lowered)
+    if re.search(r"(..+)\1{3,}", squashed):
+        return True
+
+    return False
+
+
+def segment_passes_quality_filter(segment: Dict[str, Any], mode: str) -> bool:
+    if mode == "off":
+        return True
+
+    strict = mode == "strict"
+    avg_logprob = segment.get("avg_logprob")
+    no_speech_prob = segment.get("no_speech_prob")
+    compression_ratio = segment.get("compression_ratio")
+
+    if isinstance(no_speech_prob, float) and isinstance(avg_logprob, float):
+        if no_speech_prob >= (0.65 if strict else 0.80) and avg_logprob <= (-1.0 if strict else -1.5):
+            return False
+    if isinstance(compression_ratio, float):
+        if compression_ratio >= (2.4 if strict else 3.0):
+            return False
+
+    return not looks_hallucinated_text(str(segment.get("text", "")), strict=strict)
+
+
+def dedupe_overlap_segments(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    deduped: List[Dict[str, Any]] = []
+    for seg in segments:
+        if not deduped:
+            deduped.append(seg)
+            continue
+        prev = deduped[-1]
+        prev_norm = normalize_for_dedupe(str(prev.get("text", "")))
+        curr_norm = normalize_for_dedupe(str(seg.get("text", "")))
+        if (
+            prev.get("speaker") == seg.get("speaker")
+            and prev_norm
+            and curr_norm
+            and (curr_norm == prev_norm or curr_norm in prev_norm or prev_norm in curr_norm)
+            and abs(float(seg.get("start", 0.0)) - float(prev.get("start", 0.0))) <= 2.0
+            and float(seg.get("start", 0.0)) <= float(prev.get("end", 0.0)) + 0.75
+        ):
+            continue
+        deduped.append(seg)
+    return deduped
+
+
+def suppress_low_signal_one_word_noise(segments: List[Dict[str, Any]], strict: bool) -> List[Dict[str, Any]]:
+    if not segments:
+        return segments
+
+    flagged: set[int] = set()
+    cross_speaker_window = 1.25 if not strict else 1.0
+    cross_speaker_threshold = 3 if not strict else 2
+    same_speaker_window = 1.5
+
+    by_token: Dict[str, List[Tuple[int, float, str]]] = {}
+    by_speaker_token: Dict[Tuple[str, str], List[Tuple[int, float]]] = {}
+    for idx, seg in enumerate(segments):
+        token = extract_single_word_token(str(seg.get("text", "")))
+        if token not in LOW_SIGNAL_ONE_WORD_TOKENS:
+            continue
+        start = float(seg.get("start", 0.0))
+        speaker = str(seg.get("speaker", ""))
+        by_token.setdefault(token, []).append((idx, start, speaker))
+        by_speaker_token.setdefault((speaker, token), []).append((idx, start))
+
+    # Remove repeated low-signal one-word bursts across multiple speakers.
+    for occurrences in by_token.values():
+        left = 0
+        for right in range(len(occurrences)):
+            while occurrences[right][1] - occurrences[left][1] > cross_speaker_window:
+                left += 1
+            if right - left + 1 < cross_speaker_threshold:
+                continue
+            speakers = {occurrences[k][2] for k in range(left, right + 1)}
+            if len(speakers) < 2:
+                continue
+            for k in range(left, right + 1):
+                flagged.add(occurrences[k][0])
+
+    # Remove repeated low-signal one-word echoes from the same speaker.
+    for occurrences in by_speaker_token.values():
+        if len(occurrences) < 2:
+            continue
+        run: List[int] = [occurrences[0][0]]
+        prev_start = occurrences[0][1]
+        for idx, start in occurrences[1:]:
+            if start - prev_start <= same_speaker_window:
+                run.append(idx)
+            else:
+                if len(run) >= 2:
+                    # Keep the first, suppress repeated echoes.
+                    flagged.update(run[1:])
+                run = [idx]
+            prev_start = start
+        if len(run) >= 2:
+            flagged.update(run[1:])
+
+    if not flagged:
+        return segments
+    return [seg for idx, seg in enumerate(segments) if idx not in flagged]
+
+
+def apply_quality_filter(segments: List[Dict[str, Any]], mode: str) -> List[Dict[str, Any]]:
+    cleaned: List[Dict[str, Any]] = []
+    for seg in segments:
+        normalized = clean_text(str(seg.get("text", "")))
+        if not normalized:
+            continue
+        candidate = {**seg, "text": normalized}
+        if segment_passes_quality_filter(candidate, mode):
+            cleaned.append(candidate)
+    cleaned.sort(key=lambda row: (row["start"], row["end"], row["speaker"]))
+    if mode != "off":
+        cleaned = suppress_low_signal_one_word_noise(cleaned, strict=(mode == "strict"))
+    return dedupe_overlap_segments(cleaned)
 
 
 def check_ffmpeg() -> bool:
     return bool(shutil.which("ffmpeg"))
 
 
-def setup_logger(log_path: Optional[Path], quiet: bool) -> logging.Logger:
+def setup_logger(quiet: bool, log_path: Optional[Path] = None) -> logging.Logger:
     logger = logging.getLogger("discord_session_archive")
     logger.setLevel(logging.INFO)
     for handler in list(logger.handlers):
         logger.removeHandler(handler)
 
-    formatter = logging.Formatter(LOG_FORMAT, LOG_DATEFMT)
-
     if log_path is not None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        fh = RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
-        fh.setFormatter(formatter)
+        fh = logging.FileHandler(log_path, encoding="utf-8")
+        fh.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATEFMT))
         logger.addHandler(fh)
 
     if not quiet:
         sh = logging.StreamHandler(stream=sys.stdout)
-        sh.setFormatter(formatter)
+        sh.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATEFMT))
         logger.addHandler(sh)
 
     return logger
@@ -253,8 +514,6 @@ def discover_audio(paths: Sequence[str]) -> List[Path]:
         if path.is_file():
             if path.suffix.lower() in SUPPORTED_EXTS:
                 discovered.append(path)
-            else:
-                print(f"WARNING: unsupported extension skipped: {path}", file=sys.stderr)
             continue
 
         for child in sorted(path.rglob("*")):
@@ -284,6 +543,178 @@ def pick_folder_via_gui(initial_dir: Path) -> Path:  # pragma: no cover
         print("ERROR: no folder selected.", file=sys.stderr)
         sys.exit(1)
     return Path(choice).resolve()
+
+
+def find_info_txt(input_paths: Sequence[str], audio_files: Sequence[Path]) -> Optional[Path]:
+    candidates: List[Path] = []
+    for raw in input_paths:
+        path = Path(raw).expanduser().resolve()
+        if path.is_file() and path.name.lower() == "info.txt":
+            candidates.append(path)
+        if path.is_dir():
+            root_info = path / "info.txt"
+            if root_info.exists():
+                candidates.append(root_info.resolve())
+            for child in sorted(path.rglob("info.txt")):
+                candidates.append(child.resolve())
+                break
+
+    for audio in audio_files:
+        cur = audio.parent
+        for _ in range(4):
+            candidate = cur / "info.txt"
+            if candidate.exists():
+                candidates.append(candidate.resolve())
+                break
+            if cur.parent == cur:
+                break
+            cur = cur.parent
+
+    seen = set()
+    for item in candidates:
+        if item in seen:
+            continue
+        seen.add(item)
+        if item.exists() and item.is_file():
+            return item
+    return None
+
+
+def normalize_info_key(key: str) -> str:
+    return re.sub(r"\s+", " ", key.strip().lower())
+
+
+def is_note_key(key: str) -> bool:
+    normalized = normalize_info_key(key)
+    return normalized in {"note", "notes"} or normalized.startswith("note ") or normalized.startswith("notes ")
+
+
+def looks_like_timestamp_note_line(line: str) -> bool:
+    return bool(
+        re.match(
+            r"^\s*(?:[-*]\s*)?\d{1,2}:\d{2}(?::\d{2})?(?:\s+.*)?$",
+            line,
+        )
+    )
+
+
+def yaml_quote(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def parse_start_time(raw: Optional[str]) -> Optional[datetime]:
+    if not raw:
+        return None
+    text = raw.strip()
+    if not text:
+        return None
+
+    maybe_iso = text.replace(" UTC", "+00:00")
+    if maybe_iso.endswith("Z"):
+        maybe_iso = maybe_iso[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(maybe_iso)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except ValueError:
+        pass
+
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%a %b %d %H:%M:%S %Y", "%a, %d %b %Y %H:%M:%S %z"):
+        try:
+            parsed = datetime.strptime(text, fmt)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def parse_craig_info(path: Path) -> CraigInfoMetadata:
+    payload = path.read_text(encoding="utf-8-sig", errors="replace")
+    raw_fields: Dict[str, List[str]] = {}
+    current_key: Optional[str] = None
+    for line in payload.splitlines():
+        if not line.strip():
+            current_key = None
+            continue
+
+        if current_key and is_note_key(current_key):
+            if line.startswith((" ", "\t")) or looks_like_timestamp_note_line(line):
+                raw_fields[current_key].append(line.strip())
+                continue
+
+        match = re.match(r"^\s*([^:]{1,80}):\s*(.*)$", line)
+        if match:
+            current_key = normalize_info_key(match.group(1))
+            raw_fields.setdefault(current_key, []).append(match.group(2).strip())
+            continue
+        if current_key and line.startswith((" ", "\t")):
+            raw_fields[current_key][-1] = (raw_fields[current_key][-1] + " " + line.strip()).strip()
+            continue
+        if current_key and is_note_key(current_key):
+            raw_fields[current_key].append(line.strip())
+
+    def first_value(*keys: str) -> Optional[str]:
+        for key in keys:
+            values = raw_fields.get(normalize_info_key(key), [])
+            for value in values:
+                if value.strip():
+                    return value.strip()
+        return None
+
+    tracks: List[str] = []
+    for key, values in raw_fields.items():
+        if key == "tracks":
+            for value in values:
+                parts = [item.strip() for item in re.split(r"[;,]", value) if item.strip()]
+                tracks.extend(parts if parts else [value])
+        elif key.startswith("track"):
+            tracks.extend([item for item in values if item.strip()])
+
+    notes: List[str] = []
+    for key, values in raw_fields.items():
+        if is_note_key(key):
+            notes.extend([item for item in values if item.strip()])
+
+    start_time_raw = first_value("Start time", "Start", "Started")
+    return CraigInfoMetadata(
+        path=path,
+        guild=first_value("Guild", "Server"),
+        start_time_raw=start_time_raw,
+        start_time_utc=parse_start_time(start_time_raw),
+        requester=first_value("Requester", "Requested by", "Requestor"),
+        channel=first_value("Channel", "Voice channel", "Text channel"),
+        tracks=tracks,
+        notes=notes,
+        raw_fields=raw_fields,
+    )
+
+
+def safe_iso_timestamp(dt: datetime) -> str:
+    utc = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    utc = utc.astimezone(timezone.utc)
+    millis = int(utc.microsecond / 1000)
+    return f"{utc.strftime('%Y-%m-%dT%H-%M-%S')}.{millis:03d}Z"
+
+
+def build_run_id(label: Optional[str], info: CraigInfoMetadata) -> str:
+    stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    if label:
+        return f"{sanitize_label(label)}_{stamp}"
+
+    if info.guild:
+        guild_source = strip_discord_snowflake_tokens(info.guild)
+        guild = sanitize_run_component(guild_source)
+        if guild == "session":
+            guild = sanitize_run_component(info.guild)
+        if info.start_time_utc:
+            return f"{guild}_{safe_iso_timestamp(info.start_time_utc)}"
+        if info.start_time_raw:
+            return f"{guild}_{sanitize_run_component(info.start_time_raw.replace(':', '-'))}"
+
+    return stamp
 
 
 def compute_chunks(duration_ms: int, chunk_ms: int, overlap_ms: int) -> List[Tuple[int, int]]:
@@ -318,16 +749,56 @@ def export_chunks(audio: Any, bounds: List[Tuple[int, int]], temp_dir: Path, ste
     return specs
 
 
-def parse_segment_obj(obj: Any, offset: float) -> Dict[str, Any]:
+def read_obj_value(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
-        start = float(obj.get("start", 0.0)) + offset
-        end = float(obj.get("end", start)) + offset
-        text = str(obj.get("text", "")).strip()
-        return {"start": start, "end": end, "text": text}
-    start = float(getattr(obj, "start", 0.0)) + offset
-    end = float(getattr(obj, "end", start)) + offset
-    text = str(getattr(obj, "text", "")).strip()
-    return {"start": start, "end": end, "text": text}
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def parse_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_language_hint(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    hint = value.strip().lower()
+    if not hint or hint == "auto":
+        return None
+    hint = hint.replace("_", "-")
+    if LANGUAGE_CODE_RE.fullmatch(hint):
+        return hint
+    hint = re.sub(r"\([^)]*\)", "", hint)
+    hint = re.sub(r"[\s_-]+", " ", hint).strip()
+    if not hint:
+        return None
+    return LANGUAGE_NAME_TO_CODE.get(hint)
+
+
+def is_language_hint_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    if "language" not in text:
+        return False
+    return any(token in text for token in ("invalid", "unsupported", "not a valid", "must be", "iso"))
+
+
+def parse_segment_obj(obj: Any, offset: float) -> Dict[str, Any]:
+    start_raw = parse_float(read_obj_value(obj, "start", 0.0)) or 0.0
+    end_raw = parse_float(read_obj_value(obj, "end", start_raw)) or start_raw
+    text = str(read_obj_value(obj, "text", "")).strip()
+    return {
+        "start": start_raw + offset,
+        "end": end_raw + offset,
+        "text": text,
+        "avg_logprob": parse_float(read_obj_value(obj, "avg_logprob")),
+        "no_speech_prob": parse_float(read_obj_value(obj, "no_speech_prob")),
+        "compression_ratio": parse_float(read_obj_value(obj, "compression_ratio")),
+    }
 
 
 def read_chunk_bytes(path: Path) -> bytes:
@@ -340,34 +811,98 @@ def read_chunk_bytes(path: Path) -> bytes:
     wait=wait_exponential(multiplier=1, min=1, max=20),
     retry=retry_if_exception_type(OpenAIError),
 )
-def call_whisper(client: OpenAI, chunk: ChunkSpec) -> Dict[str, Any]:
+def call_whisper(
+    client: OpenAI,
+    chunk: ChunkSpec,
+    api_semaphore: threading.BoundedSemaphore,
+    language: Optional[str],
+) -> Dict[str, Any]:
     payload = read_chunk_bytes(chunk.file_path)
-    response = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=(chunk.file_path.name, payload, "audio/flac"),
-        response_format="verbose_json",
-    )
-    segments_raw = getattr(response, "segments", None)
-    if segments_raw is None and isinstance(response, dict):
-        segments_raw = response.get("segments", [])
+    request_args: Dict[str, Any] = {
+        "model": "whisper-1",
+        "file": (chunk.file_path.name, payload, "audio/flac"),
+        "response_format": "verbose_json",
+    }
+    if language:
+        request_args["language"] = language
 
-    segments = [parse_segment_obj(seg, chunk.offset_sec) for seg in (segments_raw or [])]
+    with api_semaphore:
+        response = client.audio.transcriptions.create(**request_args)
+
+    segments_raw = read_obj_value(response, "segments", []) or []
+    response_language = read_obj_value(response, "language")
+
+    segments = [parse_segment_obj(seg, chunk.offset_sec) for seg in segments_raw]
     return {
         "chunk_file": chunk.file_path.name,
         "offset_sec": chunk.offset_sec,
         "duration_sec": (chunk.end_ms - chunk.start_ms) / 1000.0,
+        "language": str(response_language).strip() if response_language else None,
         "segments": segments,
     }
 
 
-def transcribe_track(
+def select_dominant_language(values: List[str]) -> Optional[str]:
+    candidates = [val.strip().lower() for val in values if val and val.strip()]
+    if not candidates:
+        return None
+    return Counter(candidates).most_common(1)[0][0]
+
+
+def call_whisper_with_language_fallback(
     client: OpenAI,
+    chunk: ChunkSpec,
+    api_semaphore: threading.BoundedSemaphore,
+    language: Optional[str],
+    logger: logging.Logger,
+) -> Dict[str, Any]:
+    try:
+        return call_whisper(client, chunk, api_semaphore, language=language)
+    except Exception as exc:  # noqa: BLE001
+        if language and is_language_hint_error(exc):
+            logger.warning(
+                "Chunk %s rejected language hint '%s'; retrying without explicit language.",
+                chunk.file_path.name,
+                language,
+            )
+            return call_whisper(client, chunk, api_semaphore, language=None)
+        raise
+
+
+def add_result_segments(
+    track_segments: List[Dict[str, Any]],
+    result: Dict[str, Any],
+    speaker: str,
+    source_file: str,
+) -> None:
+    for segment in result.get("segments", []):
+        if not segment.get("text"):
+            continue
+        track_segments.append(
+            {
+                "start": segment["start"],
+                "end": segment["end"],
+                "speaker": speaker,
+                "text": segment["text"],
+                "source_file": source_file,
+                "avg_logprob": segment.get("avg_logprob"),
+                "no_speech_prob": segment.get("no_speech_prob"),
+                "compression_ratio": segment.get("compression_ratio"),
+                "language": result.get("language"),
+            }
+        )
+
+
+def transcribe_track(
+    client: Optional[OpenAI],
     audio_path: Path,
     name_map: Dict[str, str],
     chunk_sec: int,
     overlap_sec: float,
     max_workers: int,
+    language: str,
     dry_run: bool,
+    api_semaphore: threading.BoundedSemaphore,
     logger: logging.Logger,
 ) -> Dict[str, Any]:
     speaker = apply_name_map_to_speaker(normalize_speaker(audio_path.stem), name_map)
@@ -379,7 +914,7 @@ def transcribe_track(
     duration_sec = duration_ms / 1000.0
 
     bounds = compute_chunks(duration_ms, int(chunk_sec * 1000), int(overlap_sec * 1000))
-    logger.info("Loaded %s (%.2fs), planned %d chunks", audio_path.name, duration_sec, len(bounds))
+    logger.info("Track %s loaded (%.2fs), %d chunks", audio_path.name, duration_sec, len(bounds))
 
     if dry_run:
         return {
@@ -390,6 +925,8 @@ def transcribe_track(
             "errors": [],
             "planned_chunks": len(bounds),
         }
+    if client is None:
+        raise RuntimeError("OpenAI client is required for non-dry runs.")
 
     with tempfile.TemporaryDirectory(prefix="discord_session_archive_chunks_") as tmp:
         temp_dir = Path(tmp)
@@ -398,31 +935,75 @@ def transcribe_track(
 
         all_segments: List[Dict[str, Any]] = []
         errors: List[Dict[str, Any]] = []
+        observed_languages: List[str] = []
 
+        warmup_specs: List[ChunkSpec] = []
+        worker_specs = list(specs)
+        worker_language: Optional[str]
+
+        if language == "auto" and specs:
+            warmup_specs = specs[: min(2, len(specs))]
+            worker_specs = specs[len(warmup_specs) :]
+            worker_language = None
+        else:
+            worker_language = language
+
+        for warmup in warmup_specs:
+            try:
+                result = call_whisper(client, warmup, api_semaphore, language=None)
+                add_result_segments(all_segments, result, speaker, audio_path.name)
+                if result.get("language"):
+                    observed_languages.append(str(result["language"]))
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"chunk_file": warmup.file_path.name, "error": f"{exc.__class__.__name__}: {exc}"})
+
+        if language == "auto":
+            dominant = select_dominant_language(observed_languages)
+            if dominant:
+                mapped = normalize_language_hint(dominant)
+                if mapped:
+                    worker_language = mapped
+                    logger.info(
+                        "Track %s language auto-detected as '%s' (using hint '%s')",
+                        audio_path.name,
+                        dominant,
+                        mapped,
+                    )
+                else:
+                    worker_language = None
+                    logger.info(
+                        "Track %s language auto-detected as '%s' (no safe hint mapping; keeping auto)",
+                        audio_path.name,
+                        dominant,
+                    )
+
+        progress_step = max(1, len(worker_specs) // 5)
         with cf.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_chunk = {executor.submit(call_whisper, client, spec): spec for spec in specs}
-            done = 0
+            future_to_chunk = {
+                executor.submit(
+                    call_whisper_with_language_fallback,
+                    client,
+                    spec,
+                    api_semaphore,
+                    worker_language,
+                    logger,
+                ): spec
+                for spec in worker_specs
+            }
+            done = len(warmup_specs)
             total = len(specs)
             for future in cf.as_completed(future_to_chunk):
                 spec = future_to_chunk[future]
                 try:
                     result = future.result()
-                    for segment in result["segments"]:
-                        if not segment["text"]:
-                            continue
-                        all_segments.append(
-                            {
-                                "start": segment["start"],
-                                "end": segment["end"],
-                                "speaker": speaker,
-                                "text": segment["text"],
-                                "source_file": audio_path.name,
-                            }
-                        )
+                    add_result_segments(all_segments, result, speaker, audio_path.name)
                 except Exception as exc:  # noqa: BLE001
                     errors.append({"chunk_file": spec.file_path.name, "error": f"{exc.__class__.__name__}: {exc}"})
                 done += 1
-                logger.info("Track %s progress: %d/%d chunks", audio_path.name, done, total)
+                if done == total or done % progress_step == 0:
+                    logger.info("Track %s progress: %d/%d chunks", audio_path.name, done, total)
+        if errors:
+            logger.warning("Track %s completed with %d chunk errors.", audio_path.name, len(errors))
 
     all_segments.sort(key=lambda row: (row["start"], row["end"], row["speaker"]))
     return {
@@ -435,37 +1016,49 @@ def transcribe_track(
     }
 
 
-def render_markdown(segments: List[Dict[str, Any]], title: str) -> str:
-    lines = [
-        f"# {title}",
-        "",
-        f"Generated UTC: {datetime.utcnow().isoformat()}Z",
-        "",
-    ]
-    for seg in segments:
-        timestamp = format_timestamp(float(seg["start"]))
-        lines.append(f"- [{timestamp}] **{seg['speaker']}**: {seg['text']}")
+def render_transcript_markdown(
+    run_id: str,
+    segments: List[Dict[str, Any]],
+    metadata: CraigInfoMetadata,
+    track_count: int,
+    quality_filter: str,
+    language_mode: str,
+    runtime_sec: float,
+    error_count: int,
+) -> str:
+    lines: List[str] = ["---", f"session: {run_id}"]
+    if metadata.guild:
+        lines.append(f"guild: {yaml_quote(metadata.guild)}")
+    if metadata.channel:
+        lines.append(f"channel: {yaml_quote(metadata.channel)}")
+    if metadata.requester:
+        lines.append(f"requester: {yaml_quote(metadata.requester)}")
+    if metadata.start_time_raw:
+        lines.append(f"start_time: {yaml_quote(metadata.start_time_raw)}")
+    if metadata.path:
+        lines.append(f"source_info_file: {yaml_quote(metadata.path.as_posix())}")
+    if metadata.tracks:
+        lines.append("tracks:")
+        for track in metadata.tracks:
+            lines.append(f"  - {yaml_quote(track)}")
+    if metadata.notes:
+        lines.append("craig_notes:")
+        for note in metadata.notes:
+            lines.append(f"  - {yaml_quote(note)}")
+    lines.append("tags: [transcription]")
+    lines.append("---")
     lines.append("")
-    return "\n".join(lines)
+    lines.append("summary: |")
+    lines.append("  Auto-generated transcript cleaned in single-run newbie mode.")
+    lines.append(
+        "  "
+        + f"tracks={track_count}, segments={len(segments)}, errors={error_count}, "
+        + f"quality_filter={quality_filter}, language={language_mode}, runtime_sec={runtime_sec:.2f}."
+    )
+    lines.append("")
 
-
-def render_notebooklm_markdown(run_id: str, segments: List[Dict[str, Any]]) -> str:
-    lines = [
-        "# NotebookLM Input Notes",
-        "",
-        "This transcript was generated from a Discord recording export.",
-        f"Run ID: {run_id}",
-        "",
-        "## Suggested prompts",
-        "- Summarize the conversation in 10 bullet points.",
-        "- Extract action items and owners.",
-        "- Identify unresolved questions and follow-ups.",
-        "",
-        "## Transcript",
-        "",
-    ]
     for seg in segments:
-        lines.append(f"- [{format_timestamp(float(seg['start']))}] {seg['speaker']}: {seg['text']}")
+        lines.append(f"[{format_segment_timestamp(float(seg['start']))} {seg['speaker']}] {seg['text']}")
     lines.append("")
     return "\n".join(lines)
 
@@ -475,38 +1068,69 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
-
-
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Turnkey Craig -> whisper-1 -> transcript pipeline.",
+        description="Single-run Craig -> whisper-1 -> cleaned transcript pipeline.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--input", "-i", nargs="+", help="Craig export folder(s) or audio file path(s).")
-    parser.add_argument("--pick-folder", action="store_true", help="Open a folder picker for input.")
+    parser.add_argument(
+        "--pick-folder",
+        action="store_true",
+        help="Open a folder picker for input (also used automatically when --input is omitted).",
+    )
     parser.add_argument("--output-root", default="_local/runs", help="Output root directory.")
     parser.add_argument("--label", help="Optional label to include in run folder name.")
     parser.add_argument(
         "--name-map-mode",
-        choices=NAME_MAP_MODES,
-        default="none",
-        help="Optional speaker-label mapping mode. none=disabled, handle=_local/config/handle_map.json, real=_local/config/realname_map.json.",
+        default="replace",
+        help="Name map mode: replace (use _local/config/name_replace_map.json) or none.",
     )
-    parser.add_argument("--clean", action="store_true", help="Write cleaned Markdown transcript.")
-    parser.add_argument("--json", action="store_true", dest="write_json", help="Write transcript JSON.")
-    parser.add_argument("--notebooklm", action="store_true", help="Write NotebookLM-friendly Markdown.")
     parser.add_argument("--chunk-sec", type=int, default=DEFAULT_CHUNK_SEC, help="Chunk duration in seconds.")
     parser.add_argument("--overlap-sec", type=float, default=DEFAULT_OVERLAP_SEC, help="Chunk overlap in seconds.")
-    parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS, help="Max worker threads.")
+    parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS, help="Per-track chunk worker count.")
+    parser.add_argument("--track-workers", type=int, default=DEFAULT_TRACK_WORKERS, help="Parallel track worker count.")
+    parser.add_argument("--api-workers", type=int, default=DEFAULT_API_WORKERS, help="Global max concurrent paid API calls.")
+    parser.add_argument("--language", default="auto", help="Language mode: auto or explicit language code (for example: en).")
+    parser.add_argument("--quality-filter", choices=QUALITY_FILTER_MODES, default="balanced", help="Quality filtering profile.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing run directory.")
     parser.add_argument("--dry-run", action="store_true", help="Preview work without writing files.")
     parser.add_argument("--quiet", action="store_true", help="Suppress console logs.")
     parser.add_argument("--version", action="store_true", help="Print version and exit.")
-    return parser.parse_args(argv)
+
+    parser.add_argument("--clean", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--notebooklm", action="store_true", help=argparse.SUPPRESS)
+
+    args = parser.parse_args(argv)
+
+    if args.clean or args.json or args.notebooklm:
+        parser.error(
+            "Removed flags detected. --clean/--json/--notebooklm were removed. "
+            "The CLI now always writes one cleaned transcript Markdown file and one run log Markdown file."
+        )
+    if args.name_map_mode in {"handle", "real"}:
+        parser.error(
+            "Removed name-map mode detected. Use --name-map-mode replace with "
+            "_local/config/name_replace_map.json."
+        )
+    if args.name_map_mode not in NAME_MAP_MODES:
+        parser.error("Invalid --name-map-mode. Supported values are: replace, none.")
+
+    for key in ("chunk_sec", "max_workers", "track_workers", "api_workers"):
+        if int(getattr(args, key)) < 1:
+            parser.error(f"--{key.replace('_', '-')} must be >= 1.")
+    if float(args.overlap_sec) < 0:
+        parser.error("--overlap-sec must be >= 0.")
+    if args.language != "auto":
+        normalized_language = normalize_language_hint(args.language)
+        if not normalized_language:
+            parser.error(
+                "--language must be 'auto' or a supported ISO-639 language code (for example: en, es, cy)."
+            )
+        args.language = normalized_language
+
+    return args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
@@ -525,64 +1149,90 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     name_map = load_name_map(args.name_map_mode)
 
     input_paths = list(args.input or [])
-    if args.pick_folder:
+    if args.pick_folder or not input_paths:
         input_paths.append(str(pick_folder_via_gui(repo_root)))
-    if not input_paths:
-        print("ERROR: provide --input <path> or use --pick-folder.", file=sys.stderr)
-        sys.exit(1)
 
     audio_files = discover_audio(input_paths)
     if not audio_files:
         print("ERROR: no supported audio files found.", file=sys.stderr)
         sys.exit(1)
 
-    run_id = build_run_id(args.label)
-    run_dir = Path(args.output_root).resolve() / run_id
-    log_path = None if args.dry_run else (run_dir / "run.log")
-    logger = setup_logger(log_path=log_path, quiet=args.quiet)
+    info_path = find_info_txt(input_paths, audio_files)
+    metadata = parse_craig_info(info_path) if info_path else CraigInfoMetadata()
+    mapped_metadata = apply_name_map_to_metadata(metadata, name_map)
 
-    logger.info("Run ID: %s", run_id)
-    logger.info("Inputs: %d audio file(s)", len(audio_files))
-    logger.info("Name map mode: %s", args.name_map_mode)
-    for file_path in audio_files:
-        logger.info("  %s", file_path)
+    run_id = build_run_id(args.label, metadata)
+    run_dir = Path(args.output_root).resolve() / run_id
+    transcript_path = run_dir / f"{run_id}_transcript.md"
+    log_path = run_dir / f"{run_id}_log.md"
 
     if run_dir.exists() and not args.force and not args.dry_run:
         print(f"ERROR: output run directory exists: {run_dir} (use --force)", file=sys.stderr)
         sys.exit(1)
+    if run_dir.exists() and args.force and not args.dry_run:
+        shutil.rmtree(run_dir)
     if not args.dry_run:
         run_dir.mkdir(parents=True, exist_ok=True)
 
-    api_key = load_api_key()
-    client = build_client(api_key)
+    logger = setup_logger(quiet=args.quiet, log_path=None if args.dry_run else log_path)
+    logger.info("Run ID: %s", run_id)
+    if not args.dry_run:
+        logger.info("Log file: %s", log_path)
+    logger.info("Inputs: %d audio file(s)", len(audio_files))
+    logger.info("Name map mode: %s", args.name_map_mode)
+    logger.info("Quality filter: %s", args.quality_filter)
+    logger.info("Language mode: %s", args.language)
+    logger.info(
+        "Workers: track=%d, per-track chunks=%d, global-api=%d",
+        args.track_workers,
+        args.max_workers,
+        args.api_workers,
+    )
 
     start = time.time()
+    api_semaphore = threading.BoundedSemaphore(value=args.api_workers)
+
+    client: Optional[OpenAI] = None
+    if not args.dry_run:
+        api_key = load_api_key()
+        client = build_client(api_key)
+
     tracks: List[Dict[str, Any]] = []
-    for audio_file in audio_files:
-        try:
-            track = transcribe_track(
-                client=client,
-                audio_path=audio_file,
-                name_map=name_map,
-                chunk_sec=args.chunk_sec,
-                overlap_sec=args.overlap_sec,
-                max_workers=args.max_workers,
-                dry_run=args.dry_run,
-                logger=logger,
-            )
-            tracks.append(track)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed processing %s: %s", audio_file, exc)
-            tracks.append(
-                {
-                    "source_file": audio_file.name,
-                    "speaker": apply_name_map_to_speaker(normalize_speaker(audio_file.stem), name_map),
-                    "duration_sec": 0.0,
-                    "segments": [],
-                    "errors": [{"error": f"{exc.__class__.__name__}: {exc}"}],
-                    "planned_chunks": 0,
-                }
-            )
+    with cf.ThreadPoolExecutor(max_workers=args.track_workers) as executor:
+        future_to_track = {
+            executor.submit(
+                transcribe_track,
+                client,
+                audio_file,
+                name_map,
+                args.chunk_sec,
+                args.overlap_sec,
+                args.max_workers,
+                args.language,
+                args.dry_run,
+                api_semaphore,
+                logger,
+            ): audio_file
+            for audio_file in audio_files
+        }
+        for future in cf.as_completed(future_to_track):
+            audio_file = future_to_track[future]
+            try:
+                track = future.result()
+                tracks.append(track)
+                logger.info("Track complete: %s (%d segments)", audio_file.name, len(track["segments"]))
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed processing %s: %s", audio_file, exc)
+                tracks.append(
+                    {
+                        "source_file": audio_file.name,
+                        "speaker": apply_name_map_to_speaker(normalize_speaker(audio_file.stem), name_map),
+                        "duration_sec": 0.0,
+                        "segments": [],
+                        "errors": [{"error": f"{exc.__class__.__name__}: {exc}"}],
+                        "planned_chunks": 0,
+                    }
+                )
 
     all_segments: List[Dict[str, Any]] = []
     all_errors: List[Dict[str, Any]] = []
@@ -591,49 +1241,34 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         all_errors.extend(track["errors"])
     all_segments.sort(key=lambda row: (row["start"], row["end"], row["speaker"]))
 
-    cleaned_segments = []
-    for seg in all_segments:
-        cleaned = clean_text(seg["text"])
-        if not cleaned:
-            continue
-        cleaned_segments.append({**seg, "text": cleaned})
+    filtered_segments = apply_quality_filter(all_segments, mode=args.quality_filter)
+    runtime = time.time() - start
 
     if args.dry_run:
-        logger.info("[dry-run] Would write outputs to %s", run_dir)
-        logger.info("[dry-run] Segments: %d, errors: %d", len(all_segments), len(all_errors))
-        logger.info("Finished in %.2fs", time.time() - start)
+        logger.info("[dry-run] Would write %s", transcript_path)
+        logger.info(
+            "[dry-run] Raw segments=%d, cleaned segments=%d, errors=%d",
+            len(all_segments),
+            len(filtered_segments),
+            len(all_errors),
+        )
+        logger.info("Finished in %.2fs", runtime)
         return
 
-    transcript_md = render_markdown(all_segments, "Transcript")
-    write_text(run_dir / "transcript.md", transcript_md)
-    logger.info("Wrote %s", run_dir / "transcript.md")
-
-    if args.clean:
-        cleaned_md = render_markdown(cleaned_segments, "Transcript (Cleaned)")
-        write_text(run_dir / "transcript.cleaned.md", cleaned_md)
-        logger.info("Wrote %s", run_dir / "transcript.cleaned.md")
-
-    if args.write_json:
-        payload = {
-            "version": VERSION,
-            "engine": "whisper-1",
-            "run_id": run_id,
-            "created_utc": datetime.utcnow().isoformat() + "Z",
-            "inputs": [str(p) for p in audio_files],
-            "segments": all_segments,
-            "errors": all_errors,
-            "tracks": tracks,
-        }
-        write_json(run_dir / "transcript.json", payload)
-        logger.info("Wrote %s", run_dir / "transcript.json")
-
-    if args.notebooklm:
-        notebooklm_md = render_notebooklm_markdown(run_id, cleaned_segments if args.clean else all_segments)
-        write_text(run_dir / "notebooklm.md", notebooklm_md)
-        logger.info("Wrote %s", run_dir / "notebooklm.md")
-
-    logger.info("Finished in %.2fs", time.time() - start)
-    print(f"Transcript run complete: {run_dir}")
+    transcript_md = render_transcript_markdown(
+        run_id=run_id,
+        segments=filtered_segments,
+        metadata=mapped_metadata,
+        track_count=len(tracks),
+        quality_filter=args.quality_filter,
+        language_mode=args.language,
+        runtime_sec=runtime,
+        error_count=len(all_errors),
+    )
+    write_text(transcript_path, transcript_md)
+    logger.info("Wrote %s", transcript_path)
+    logger.info("Finished in %.2fs", runtime)
+    print(f"Transcript run complete: {transcript_path}")
 
 
 if __name__ == "__main__":  # pragma: no cover

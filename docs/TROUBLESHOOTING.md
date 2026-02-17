@@ -7,54 +7,38 @@ Back to docs index: `docs/README.md`
 ### Bootstrap exits with code `2`
 
 Cause:
-- One or more required external dependencies are missing (`python`, `ffmpeg`, `git`) and install mode was not enabled (or install was declined).
+
+- Missing dependency (`python`, `ffmpeg`, or `git`) and install mode is disabled/declined.
 
 Fix:
-1. Re-run bootstrap in install mode:
 
 ```powershell
 .\scripts\bootstrap.ps1 -InstallMissingDependencies
 ```
 
-or:
-
-```bash
-bash ./scripts/bootstrap.sh --install-missing-dependencies
-```
-
-2. If you prefer no automation, use Manual Setup in `docs/SETUP.md` and install missing dependencies directly.
+or install manually and re-run bootstrap.
 
 ### Bootstrap exits with code `3`
 
 Cause:
-- Install mode was requested, but no supported package manager was detected on this system.
+
+- Install mode requested but no supported package manager detected.
 
 Fix:
-1. Install dependencies manually (`python`, `ffmpeg`, `git`) using your OS package manager.
-2. Re-run bootstrap without install mode or continue manual setup.
-3. See canonical commands in `docs/SETUP.md` under "Manual Setup (No Bootstrap)".
+
+- Install dependencies manually, then re-run.
 
 ### Bootstrap exits with code `4`
 
 Cause:
-- Bootstrap attempted dependency installation but all install attempts failed.
+
+- Dependency installation was attempted but failed.
 
 Fix:
-1. Run the printed install commands manually to inspect the exact package-manager error.
-2. Resolve package-manager permissions/network/repository issues.
-3. Re-run bootstrap after dependencies are present.
 
-### If bootstrap says a dependency is missing
-
-Map the missing tool to manual install steps in `docs/SETUP.md`:
-- `python` missing: install Python 3.10+ and ensure `python` or `py -3` works.
-- `ffmpeg` missing: install ffmpeg and ensure it is on `PATH`.
-- `git` missing: install Git and verify `git --version`.
+- Run the printed install commands manually to inspect package-manager errors.
 
 ### `OPENAI_API_KEY not set`
-
-Symptom:
-- CLI exits with key-related error.
 
 Fix:
 
@@ -62,43 +46,43 @@ Fix:
 Copy-Item .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env`, then re-run.
+Then set `OPENAI_API_KEY` in `.env`.
 
 ### `ffmpeg not found in PATH`
 
-Symptom:
-- CLI exits with ffmpeg error.
-
 Fix:
+
 1. Install `ffmpeg`.
-2. Ensure install directory is on `PATH`.
-3. Restart terminal and run again.
+2. Ensure `ffmpeg` is on `PATH`.
+3. Restart terminal.
 
-### `ERROR: no supported audio files found`
+## Runtime Failures
 
-Symptom:
-- Input path exists but has no supported audio.
+### Removed flag error for `--clean`, `--json`, `--notebooklm`
 
-Fix:
-- Confirm your Craig export folder contains `.mp3`, `.wav`, `.m4a`, `.aac`, or `.flac`.
-- Pass explicit input:
+Cause:
 
-```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
-```
-
-### Tkinter unavailable for picker
-
-Symptom:
-- `--pick-folder` fails on minimal/headless Python builds.
+- These flags were intentionally removed in single-run newbie mode.
 
 Fix:
-- Use explicit `--input` path instead of picker mode.
+
+- Run without those flags. Cleaned Markdown output is always generated automatically.
+
+### Removed mode error for `--name-map-mode handle|real`
+
+Cause:
+
+- `handle` and `real` were removed.
+
+Fix:
+
+- Use `--name-map-mode replace` (default) and edit `_local/config/name_replace_map.json`.
 
 ### Name map file missing
 
-Symptom:
-- CLI exits with a missing name map file error when using `--name-map-mode handle` or `--name-map-mode real`.
+Cause:
+
+- `--name-map-mode replace` is active but map file is missing.
 
 Fix:
 
@@ -106,64 +90,141 @@ Fix:
 .\scripts\init_local_config.ps1
 ```
 
-or:
-
-```bash
-bash ./scripts/init_local_config.sh
-```
-
 Then edit:
-- `_local/config/handle_map.json`
-- `_local/config/realname_map.json`
+
+- `_local/config/name_replace_map.json`
 
 ### Invalid name map JSON
 
-Symptom:
-- CLI exits with invalid name map JSON/object error.
-
 Fix:
-- Ensure selected map file is valid JSON.
-- Ensure the top-level value is an object.
-- Ensure all keys and values are non-empty strings.
 
-Valid example:
+- Ensure map is valid JSON object with non-empty string keys/values.
+
+Example:
 
 ```json
 {
-  "speaker one": "Example Person One",
-  "speaker two": "Example Person Two"
+  "@speaker-one": "Example Preferred Name One",
+  "speaker one": "Example Preferred Name One",
+  "example person one": "Example Preferred Name One"
 }
 ```
 
-## Output/Run Failures
-
 ### Existing run directory error
 
-Symptom:
-- Output folder already exists for a run ID.
+Fix:
+
+- Use `--force` or choose a different `--label`.
+
+### Where are run logs?
+
+Each run writes a markdown log file alongside the transcript:
+
+```text
+_local/runs/<run_id>/<run_id>_log.md
+```
+
+### No supported audio files found
 
 Fix:
-- Use `--force`, or choose a different `--label`.
 
-### Partial transcription errors
-
-Symptom:
-- Run completes but includes chunk errors.
-
-Fix:
-- Re-run with stable network.
-- Reduce parallelism:
+- Confirm input has `.mp3`, `.wav`, `.m4a`, `.aac`, or `.flac`.
+- If you used the default picker flow, re-run and choose the correct Craig export folder.
+- Pass explicit input path:
 
 ```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --max-workers 1 --force
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
 ```
+
+### File picker unavailable
+
+Cause:
+
+- GUI/Tkinter is unavailable in your Python environment.
+
+Fix:
+
+- Use manual input mode:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
+```
+
+## Naming and Metadata
+
+### Run name does not use guild/timestamp
+
+Cause:
+
+- `info.txt` not found or not parseable.
+
+Fix:
+
+1. Confirm `info.txt` exists in/near the Craig export.
+2. Ensure it includes `Guild:` and `Start time:`.
+3. Otherwise, use `--label`.
+
+Fallback order:
+
+1. `--label`
+2. parsed `info.txt`
+3. UTC timestamp
+
+### Craig notes missing from frontmatter
+
+Cause:
+
+- `info.txt` has no `Notes`/`Note` entries, or note lines are outside the parsed section.
+
+Fix:
+
+1. Add notes through Craig during recording so they appear in `info.txt`.
+2. Confirm `info.txt` includes `Notes:` or `Note ...:` entries.
+3. Re-run transcription; notes appear in frontmatter under `craig_notes`.
+
+### Timestamp contains invalid filename characters
+
+Behavior:
+
+- `:` is automatically replaced with `-` for Windows-safe naming.
+
+## Transcript Quality
+
+### Random language drift / gibberish
+
+Fix options:
+
+1. Force language:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language en
+```
+
+2. Increase filtering:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter strict
+```
+
+3. Disable filtering for debugging:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter off
+```
+
+### Run is too slow
+
+Tune workers:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --track-workers 4 --api-workers 4 --max-workers 4
+```
+
+If your machine/API rate limits are tight, reduce workers.
 
 ## Privacy Guard Failures
 
 ### `ERROR: privacy guard blocked commit`
-
-Cause:
-- Staged or tracked files match blocked artifact patterns.
 
 Fix:
 
@@ -175,9 +236,6 @@ git status --short
 
 ## Hooks Not Running
 
-Symptom:
-- Local commit succeeds when it should fail.
-
 Fix:
 
 ```powershell
@@ -186,40 +244,3 @@ git config --get core.hooksPath
 ```
 
 Expected value: `.githooks`.
-
-## Repeatable Preflight
-
-Use one command to verify local environment, guards, and CLI basics:
-
-```powershell
-.\scripts\preflight.ps1
-```
-
-## VS Code Debugging (Local Only)
-
-`.vscode/` is gitignored. You can create a local debug profile with:
-
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "discord-session-archive",
-      "type": "python",
-      "request": "launch",
-      "program": "${workspaceFolder}/src/discord_session_archive.py",
-      "console": "integratedTerminal",
-      "args": [
-        "--input",
-        "C:\\path\\to\\CraigExport",
-        "--label",
-        "debug",
-        "--clean",
-        "--json",
-        "--notebooklm",
-        "--force"
-      ]
-    }
-  ]
-}
-```

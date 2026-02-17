@@ -16,6 +16,10 @@ Fix:
 .\scripts\bootstrap.ps1 -InstallMissingDependencies
 ```
 
+```bash
+bash ./scripts/bootstrap.sh --install-missing-dependencies
+```
+
 or install manually and re-run bootstrap.
 
 ### Bootstrap exits with code `3`
@@ -88,6 +92,10 @@ Fix:
 
 ```powershell
 .\scripts\init_local_config.ps1
+```
+
+```bash
+bash ./scripts/init_local_config.sh
 ```
 
 Then edit:

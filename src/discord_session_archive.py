@@ -27,12 +27,14 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Match, Optional, Pattern, Sequence, Set, Tuple
 
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover
-    load_dotenv = lambda: None  # type: ignore
+
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:  # type: ignore[misc]  # noqa: D103  # pyright: ignore
+        return False
 
 AudioSegment = None  # lazy import
 
@@ -52,13 +54,22 @@ def ensure_pydub_loaded() -> None:
 
 
 try:
-    from openai import OpenAI, OpenAIError
+    from openai import (
+        APIConnectionError,
+        APIStatusError,
+        APITimeoutError,
+        BadRequestError,
+        InternalServerError,
+        OpenAI,
+        OpenAIError,
+        RateLimitError,
+    )
 except ImportError:  # pragma: no cover
     print("ERROR: openai package not installed. pip install openai", file=sys.stderr)
     sys.exit(1)
 
 try:
-    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+    from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 except ImportError:  # pragma: no cover
     print("ERROR: tenacity not installed. pip install tenacity", file=sys.stderr)
     sys.exit(1)
@@ -93,6 +104,30 @@ LOW_SIGNAL_ONE_WORD_TOKENS = {
     "uhh",
     "um",
     "you",
+}
+LOW_INFORMATION_ONE_WORD_TOKENS = LOW_SIGNAL_ONE_WORD_TOKENS | {
+    "a",
+    "an",
+    "and",
+    "but",
+    "for",
+    "i",
+    "in",
+    "it",
+    "of",
+    "ok",
+    "okay",
+    "on",
+    "or",
+    "right",
+    "so",
+    "that",
+    "the",
+    "this",
+    "to",
+    "we",
+    "yeah",
+    "yep",
 }
 LANGUAGE_NAME_TO_CODE = {
     "arabic": "ar",
@@ -218,7 +253,8 @@ def load_name_map(mode: str) -> Dict[str, str]:
     if not map_path.exists():
         print(
             f"ERROR: name map file not found for mode '{mode}': {map_path}. "
-            "Create it with .\\scripts\\init_local_config.ps1 and retry.",
+            "Create it with .\\scripts\\init_local_config.ps1 (PowerShell) or "
+            "bash ./scripts/init_local_config.sh and retry.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -272,7 +308,7 @@ def apply_name_map_to_speaker(label: str, name_map: Dict[str, str]) -> str:
     return best[1] if best else label
 
 
-def compile_alias_pattern(alias: str) -> Optional[re.Pattern[str]]:
+def compile_alias_pattern(alias: str) -> Optional[Pattern[str]]:
     key = normalize_name_map_key(alias)
     if not key:
         return None
@@ -292,7 +328,11 @@ def apply_name_map_to_text(text: str, name_map: Dict[str, str]) -> str:
         pattern = compile_alias_pattern(alias)
         if pattern is None:
             continue
-        updated = pattern.sub(replacement, updated)
+        # Use literal replacement so user map values are never treated as regex syntax.
+        def literal_sub(_match: Match[str], rep: str = replacement) -> str:
+            return rep
+
+        updated = pattern.sub(literal_sub, updated)
     return updated
 
 
@@ -332,6 +372,10 @@ def extract_single_word_token(text: str) -> Optional[str]:
     if len(tokens) != 1:
         return None
     return tokens[0]
+
+
+def count_word_tokens(text: str) -> int:
+    return len(re.findall(r"[a-z0-9']+", text.lower()))
 
 
 def looks_hallucinated_text(text: str, strict: bool) -> bool:
@@ -399,21 +443,31 @@ def suppress_low_signal_one_word_noise(segments: List[Dict[str, Any]], strict: b
     if not segments:
         return segments
 
-    flagged: set[int] = set()
+    flagged: Set[int] = set()
     cross_speaker_window = 1.25 if not strict else 1.0
     cross_speaker_threshold = 3 if not strict else 2
-    same_speaker_window = 1.5
+    same_speaker_window = 6.0 if not strict else 8.0
+    overlap_scan_window = 2.5
+    overlap_match_padding = 0.2
+    overlap_recurrence_threshold = 3 if not strict else 2
+    overlap_other_min_words = 3 if not strict else 2
+    loop_window = 8.0 if not strict else 10.0
+    loop_min_len = 4 if not strict else 3
 
     by_token: Dict[str, List[Tuple[int, float, str]]] = {}
     by_speaker_token: Dict[Tuple[str, str], List[Tuple[int, float]]] = {}
+    by_speaker_one_word: Dict[str, List[Tuple[int, float, str]]] = {}
     for idx, seg in enumerate(segments):
-        token = extract_single_word_token(str(seg.get("text", "")))
-        if token not in LOW_SIGNAL_ONE_WORD_TOKENS:
-            continue
         start = float(seg.get("start", 0.0))
         speaker = str(seg.get("speaker", ""))
+        token = extract_single_word_token(str(seg.get("text", "")))
+        if token not in LOW_SIGNAL_ONE_WORD_TOKENS:
+            if token is not None:
+                by_speaker_one_word.setdefault(speaker, []).append((idx, start, token))
+            continue
         by_token.setdefault(token, []).append((idx, start, speaker))
         by_speaker_token.setdefault((speaker, token), []).append((idx, start))
+        by_speaker_one_word.setdefault(speaker, []).append((idx, start, token))
 
     # Remove repeated low-signal one-word bursts across multiple speakers.
     for occurrences in by_token.values():
@@ -430,26 +484,162 @@ def suppress_low_signal_one_word_noise(segments: List[Dict[str, Any]], strict: b
                 flagged.add(occurrences[k][0])
 
     # Remove repeated low-signal one-word echoes from the same speaker.
-    for occurrences in by_speaker_token.values():
-        if len(occurrences) < 2:
+    for speaker_occurrences in by_speaker_token.values():
+        if len(speaker_occurrences) < 2:
             continue
-        run: List[int] = [occurrences[0][0]]
-        prev_start = occurrences[0][1]
-        for idx, start in occurrences[1:]:
+        repeat_indices: List[int] = [speaker_occurrences[0][0]]
+        prev_start = speaker_occurrences[0][1]
+        for idx, start in speaker_occurrences[1:]:
             if start - prev_start <= same_speaker_window:
-                run.append(idx)
+                repeat_indices.append(idx)
             else:
-                if len(run) >= 2:
+                if len(repeat_indices) >= 2:
                     # Keep the first, suppress repeated echoes.
-                    flagged.update(run[1:])
-                run = [idx]
+                    flagged.update(repeat_indices[1:])
+                repeat_indices = [idx]
             prev_start = start
-        if len(run) >= 2:
-            flagged.update(run[1:])
+        if len(repeat_indices) >= 2:
+            flagged.update(repeat_indices[1:])
+
+    # Remove recurrent low-signal one-word stubs when a richer segment
+    # from another speaker overlaps the same moment.
+    for idx, seg in enumerate(segments):
+        token = extract_single_word_token(str(seg.get("text", "")))
+        if token not in LOW_SIGNAL_ONE_WORD_TOKENS:
+            continue
+        speaker = str(seg.get("speaker", ""))
+        if len(by_speaker_token.get((speaker, token), [])) < overlap_recurrence_threshold:
+            continue
+        seg_start = float(seg.get("start", 0.0))
+        seg_end = float(seg.get("end", seg_start))
+        if seg_end < seg_start:
+            seg_end = seg_start
+
+        has_richer_overlap = False
+        j = idx - 1
+        while j >= 0:
+            other = segments[j]
+            other_start = float(other.get("start", 0.0))
+            if other_start < seg_start - overlap_scan_window:
+                break
+            if str(other.get("speaker", "")) != speaker:
+                other_end = float(other.get("end", other_start))
+                if other_end < other_start:
+                    other_end = other_start
+                overlaps = seg_start <= other_end + overlap_match_padding and other_start <= seg_end + overlap_match_padding
+                if overlaps and count_word_tokens(str(other.get("text", ""))) >= overlap_other_min_words:
+                    has_richer_overlap = True
+                    break
+            j -= 1
+
+        if not has_richer_overlap:
+            j = idx + 1
+            while j < len(segments):
+                other = segments[j]
+                other_start = float(other.get("start", 0.0))
+                if other_start > seg_end + overlap_scan_window:
+                    break
+                if str(other.get("speaker", "")) != speaker:
+                    other_end = float(other.get("end", other_start))
+                    if other_end < other_start:
+                        other_end = other_start
+                    overlaps = seg_start <= other_end + overlap_match_padding and other_start <= seg_end + overlap_match_padding
+                    if overlaps and count_word_tokens(str(other.get("text", ""))) >= overlap_other_min_words:
+                        has_richer_overlap = True
+                        break
+                j += 1
+
+        if has_richer_overlap:
+            flagged.add(idx)
+
+    # Remove alternating one-word loops (for example: Ah/Five/Ah/Five) when the
+    # loop includes at least one known low-signal token.
+    def flag_low_signal_loop(loop_entries: List[Tuple[int, float, str]]) -> None:
+        if len(loop_entries) < loop_min_len:
+            return
+        unique_tokens = {item[2] for item in loop_entries}
+        if len(unique_tokens) > 2:
+            return
+        if not any(token in LOW_SIGNAL_ONE_WORD_TOKENS for token in unique_tokens):
+            return
+        flagged.update(item[0] for item in loop_entries[2:])
+
+    for occurrences in by_speaker_one_word.values():
+        if len(occurrences) < loop_min_len:
+            continue
+        loop_entries: List[Tuple[int, float, str]] = [occurrences[0]]
+        prev_start = occurrences[0][1]
+        for occurrence in occurrences[1:]:
+            idx, start, token = occurrence
+            if start - prev_start <= loop_window:
+                loop_entries.append((idx, start, token))
+            else:
+                flag_low_signal_loop(loop_entries)
+                loop_entries = [(idx, start, token)]
+            prev_start = start
+        flag_low_signal_loop(loop_entries)
 
     if not flagged:
         return segments
     return [seg for idx, seg in enumerate(segments) if idx not in flagged]
+
+
+def suppress_repeated_short_line_noise(segments: List[Dict[str, Any]], strict: bool) -> List[Dict[str, Any]]:
+    if not segments:
+        return segments
+
+    # Throttle repeated short-line artifacts from the same speaker while
+    # leaving longer natural lines untouched.
+    repeat_window_sec = 6.0 if not strict else 8.0
+    max_short_duration_sec = 2.6 if not strict else 2.2
+    long_one_word_repeat_window_sec = 35.0 if not strict else 50.0
+    long_one_word_min_occurrences = 5 if not strict else 4
+
+    one_word_counts: Dict[Tuple[str, str], int] = {}
+    for seg in segments:
+        token_opt = extract_single_word_token(str(seg.get("text", "")))
+        if token_opt is None:
+            continue
+        token: str = token_opt
+        speaker = str(seg.get("speaker", ""))
+        speaker_token_key: Tuple[str, str] = (speaker, token)
+        one_word_counts[speaker_token_key] = one_word_counts.get(speaker_token_key, 0) + 1
+
+    kept: List[Dict[str, Any]] = []
+    last_kept_start: Dict[Tuple[str, str], float] = {}
+    for seg in segments:
+        speaker = str(seg.get("speaker", ""))
+        text = str(seg.get("text", ""))
+        norm = normalize_for_dedupe(text)
+        if not norm:
+            continue
+
+        start = float(seg.get("start", 0.0))
+        end = float(seg.get("end", start))
+        if end < start:
+            end = start
+        duration = end - start
+        words = count_word_tokens(text)
+
+        key = (speaker, norm)
+        is_short_line = words <= 4 and duration <= max_short_duration_sec
+        if is_short_line:
+            effective_window = repeat_window_sec
+            short_token = extract_single_word_token(text)
+            if (
+                short_token is not None
+                and short_token in LOW_INFORMATION_ONE_WORD_TOKENS
+                and one_word_counts.get((speaker, short_token), 0) >= long_one_word_min_occurrences
+            ):
+                effective_window = long_one_word_repeat_window_sec
+
+            prev = last_kept_start.get(key)
+            if prev is not None and start - prev < effective_window:
+                continue
+
+        kept.append(seg)
+        last_kept_start[key] = start
+    return kept
 
 
 def apply_quality_filter(segments: List[Dict[str, Any]], mode: str) -> List[Dict[str, Any]]:
@@ -464,6 +654,7 @@ def apply_quality_filter(segments: List[Dict[str, Any]], mode: str) -> List[Dict
     cleaned.sort(key=lambda row: (row["start"], row["end"], row["speaker"]))
     if mode != "off":
         cleaned = suppress_low_signal_one_word_noise(cleaned, strict=(mode == "strict"))
+        cleaned = suppress_repeated_short_line_noise(cleaned, strict=(mode == "strict"))
     return dedupe_overlap_segments(cleaned)
 
 
@@ -700,7 +891,7 @@ def safe_iso_timestamp(dt: datetime) -> str:
 
 
 def build_run_id(label: Optional[str], info: CraigInfoMetadata) -> str:
-    stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     if label:
         return f"{sanitize_label(label)}_{stamp}"
 
@@ -801,6 +992,19 @@ def parse_segment_obj(obj: Any, offset: float) -> Dict[str, Any]:
     }
 
 
+def should_retry_openai_error(exc: BaseException) -> bool:
+    if not isinstance(exc, OpenAIError):
+        return False
+    if isinstance(exc, BadRequestError):
+        return False
+    if isinstance(exc, (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError)):
+        return True
+    if isinstance(exc, APIStatusError):
+        status_code = getattr(exc, "status_code", None)
+        return isinstance(status_code, int) and status_code >= 500
+    return False
+
+
 def read_chunk_bytes(path: Path) -> bytes:
     with path.open("rb") as handle:
         return handle.read()
@@ -809,7 +1013,7 @@ def read_chunk_bytes(path: Path) -> bytes:
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=1, max=20),
-    retry=retry_if_exception_type(OpenAIError),
+    retry=retry_if_exception(should_retry_openai_error),
 )
 def call_whisper(
     client: OpenAI,

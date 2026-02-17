@@ -101,6 +101,52 @@ def test_normalize_language_hint_accepts_codes_and_names():
     assert mod.normalize_language_hint("unknown-language") is None
 
 
+def test_apply_name_map_to_text_uses_literal_replacement():
+    updated = mod.apply_name_map_to_text("speaker one joined", {"speaker one": r"Player \1"})
+    assert updated == r"Player \1 joined"
+
+
+def test_should_retry_openai_error_predicate(monkeypatch):
+    class FakeOpenAIError(Exception):
+        pass
+
+    class FakeBadRequestError(FakeOpenAIError):
+        pass
+
+    class FakeConnectionError(FakeOpenAIError):
+        pass
+
+    class FakeTimeoutError(FakeOpenAIError):
+        pass
+
+    class FakeRateLimitError(FakeOpenAIError):
+        pass
+
+    class FakeInternalServerError(FakeOpenAIError):
+        pass
+
+    class FakeAPIStatusError(FakeOpenAIError):
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+    monkeypatch.setattr(mod, "OpenAIError", FakeOpenAIError)
+    monkeypatch.setattr(mod, "BadRequestError", FakeBadRequestError)
+    monkeypatch.setattr(mod, "APIConnectionError", FakeConnectionError)
+    monkeypatch.setattr(mod, "APITimeoutError", FakeTimeoutError)
+    monkeypatch.setattr(mod, "RateLimitError", FakeRateLimitError)
+    monkeypatch.setattr(mod, "InternalServerError", FakeInternalServerError)
+    monkeypatch.setattr(mod, "APIStatusError", FakeAPIStatusError)
+
+    assert mod.should_retry_openai_error(FakeBadRequestError()) is False
+    assert mod.should_retry_openai_error(FakeConnectionError()) is True
+    assert mod.should_retry_openai_error(FakeTimeoutError()) is True
+    assert mod.should_retry_openai_error(FakeRateLimitError()) is True
+    assert mod.should_retry_openai_error(FakeInternalServerError()) is True
+    assert mod.should_retry_openai_error(FakeAPIStatusError(503)) is True
+    assert mod.should_retry_openai_error(FakeAPIStatusError(429)) is False
+    assert mod.should_retry_openai_error(Exception()) is False
+
+
 def test_call_whisper_with_language_fallback_retries_without_hint(tmp_path: Path, monkeypatch):
     chunk_path = tmp_path / "chunk.flac"
     chunk_path.write_bytes(b"fake")
@@ -182,10 +228,13 @@ def test_load_name_map_none_returns_empty():
     assert mod.load_name_map("none") == {}
 
 
-def test_load_name_map_missing_file_fails(tmp_path: Path, monkeypatch):
+def test_load_name_map_missing_file_fails(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setattr(mod, "NAME_REPLACE_MAP_PATH", tmp_path / "missing.json")
     with pytest.raises(SystemExit):
         mod.load_name_map("replace")
+    err = capsys.readouterr().err
+    assert "init_local_config.ps1" in err
+    assert "init_local_config.sh" in err
 
 
 def test_parse_craig_info_and_run_id_from_info(tmp_path: Path):
@@ -514,6 +563,233 @@ def test_quality_filter_suppresses_repeated_one_word_echo_same_speaker():
     assert any(seg["text"] == "yes" for seg in filtered)
 
 
+def test_quality_filter_suppresses_recurrent_overlapped_you_stubs():
+    segments = [
+        {
+            "start": 100.0,
+            "end": 100.3,
+            "speaker": "Azure",
+            "text": "you",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 100.0,
+            "end": 102.5,
+            "speaker": "Oma Oboth",
+            "text": "I have guidance active and I move to the wall now",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 130.0,
+            "end": 130.2,
+            "speaker": "Azure",
+            "text": "you",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 130.0,
+            "end": 132.0,
+            "speaker": "Oma Oboth",
+            "text": "I use my action and end my turn",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 160.0,
+            "end": 160.2,
+            "speaker": "Azure",
+            "text": "you",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 160.0,
+            "end": 161.8,
+            "speaker": "Oma Oboth",
+            "text": "I hand him twenty gold and step back",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+    ]
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    assert all(not (seg["speaker"] == "Azure" and seg["text"] == "you") for seg in filtered)
+    assert len([seg for seg in filtered if seg["speaker"] == "Oma Oboth"]) == 3
+
+
+def test_quality_filter_suppresses_alternating_one_word_loop_with_low_signal_token():
+    segments = [
+        {
+            "start": 2308.64,
+            "end": 2308.90,
+            "speaker": "Azure",
+            "text": "Ah!",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 2311.08,
+            "end": 2311.30,
+            "speaker": "Azure",
+            "text": "Five.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 2313.62,
+            "end": 2313.80,
+            "speaker": "Azure",
+            "text": "Ah!",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 2320.62,
+            "end": 2320.85,
+            "speaker": "Azure",
+            "text": "Five.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 2325.62,
+            "end": 2325.80,
+            "speaker": "Azure",
+            "text": "Ah!",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 2329.62,
+            "end": 2329.85,
+            "speaker": "Azure",
+            "text": "Five.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+    ]
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    loop_words = [seg["text"] for seg in filtered if seg["speaker"] == "Azure"]
+    assert loop_words == ["Ah!", "Five."]
+
+
+def test_quality_filter_suppresses_repeated_short_line_within_window():
+    segments = [
+        {
+            "start": 10.0,
+            "end": 10.8,
+            "speaker": "DM",
+            "text": "Hold on.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 14.0,
+            "end": 14.7,
+            "speaker": "DM",
+            "text": "Hold on.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 19.0,
+            "end": 19.8,
+            "speaker": "DM",
+            "text": "Hold on.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+    ]
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["text"] == "Hold on."]
+    assert len(kept) == 2
+    assert kept[0]["start"] == 10.0
+    assert kept[1]["start"] == 19.0
+
+
+def test_quality_filter_keeps_long_repeated_line_within_window():
+    text = "I move to the wall and hold my action until the signal."
+    segments = [
+        {
+            "start": 30.0,
+            "end": 33.0,
+            "speaker": "Oma Oboth",
+            "text": text,
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 34.0,
+            "end": 37.0,
+            "speaker": "Oma Oboth",
+            "text": text,
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+    ]
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["text"] == text]
+    assert len(kept) == 2
+
+
+def test_quality_filter_suppresses_high_frequency_low_information_token_over_long_window():
+    segments = []
+    for start in (0.0, 20.0, 40.0, 60.0, 80.0, 100.0):
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.6,
+                "speaker": "Azure",
+                "text": "you",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["speaker"] == "Azure" and seg["text"] == "you"]
+    assert len(kept) == 3
+    assert [seg["start"] for seg in kept] == [0.0, 40.0, 80.0]
+
+
+def test_quality_filter_keeps_low_information_token_when_not_high_frequency():
+    segments = []
+    for start in (0.0, 20.0, 40.0, 60.0):
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.6,
+                "speaker": "Azure",
+                "text": "yep",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    kept = [seg for seg in filtered if seg["speaker"] == "Azure" and seg["text"] == "yep"]
+    assert len(kept) == 4
+
+
 def test_quality_filter_strict_is_at_least_as_aggressive_as_balanced():
     noisy = {
         "start": 0.0,
@@ -595,3 +871,227 @@ def test_global_api_worker_cap_is_enforced(tmp_path: Path, monkeypatch):
     )
 
     assert TrackingClient.audio.transcriptions.peak <= 1
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for utility functions
+# ---------------------------------------------------------------------------
+
+
+class TestFormatSegmentTimestamp:
+    def test_positive_value(self):
+        assert mod.format_segment_timestamp(3.14159) == "3.14s"
+
+    def test_zero(self):
+        assert mod.format_segment_timestamp(0.0) == "0.00s"
+
+    def test_negative_clamps_to_zero(self):
+        assert mod.format_segment_timestamp(-5.0) == "0.00s"
+
+    def test_large_value(self):
+        assert mod.format_segment_timestamp(12345.678) == "12345.68s"
+
+
+class TestSanitizeLabel:
+    def test_clean_label_unchanged(self):
+        assert mod.sanitize_label("my-run.01") == "my-run.01"
+
+    def test_special_chars_replaced(self):
+        assert mod.sanitize_label("hello world!@#") == "hello-world"
+
+    def test_leading_trailing_stripped(self):
+        assert mod.sanitize_label("--my_run--") == "my_run"
+
+    def test_empty_returns_run(self):
+        assert mod.sanitize_label("") == "run"
+
+    def test_all_special_returns_run(self):
+        assert mod.sanitize_label("!@#$%") == "run"
+
+
+class TestSanitizeRunComponent:
+    def test_basic_text(self):
+        assert mod.sanitize_run_component("Dungeon of The Mad Mage") == "Dungeon_of_The_Mad_Mage"
+
+    def test_colons_and_slashes(self):
+        result = mod.sanitize_run_component("Guild: Test/Name")
+        assert ":" not in result
+        assert "/" not in result
+
+    def test_empty_returns_session(self):
+        assert mod.sanitize_run_component("") == "session"
+
+    def test_all_punctuation_returns_session(self):
+        assert mod.sanitize_run_component(":::///") == "session"
+
+    def test_collapse_underscores(self):
+        result = mod.sanitize_run_component("a    b    c")
+        assert "__" not in result
+
+
+class TestNormalizeSpeaker:
+    def test_basic_name(self):
+        assert mod.normalize_speaker("John") == "John"
+
+    def test_underscores_replaced(self):
+        assert mod.normalize_speaker("first_second") == "first second"
+
+    def test_hyphens_replaced(self):
+        assert mod.normalize_speaker("first-second") == "first second"
+
+    def test_extra_whitespace_collapsed(self):
+        assert mod.normalize_speaker("  first   second  ") == "first second"
+
+    def test_craig_wrapped_format(self):
+        # Craig per-track stems: "<track_index> <handle> <channel_index>"
+        assert mod.normalize_speaker("0 PlayerName 1") == "PlayerName"
+
+    def test_empty_returns_unknown(self):
+        assert mod.normalize_speaker("") == "Unknown Speaker"
+
+
+class TestCleanText:
+    def test_basic_text_unchanged(self):
+        assert mod.clean_text("Hello world") == "Hello world"
+
+    def test_whitespace_collapsed(self):
+        assert mod.clean_text("  hello    world  ") == "hello world"
+
+    def test_backtick_replaced(self):
+        assert mod.clean_text("it`s") == "it's"
+
+    def test_non_ascii_stripped(self):
+        assert mod.clean_text("hello\u200bworld") == "helloworld"
+
+    def test_filler_words_return_empty(self):
+        assert mod.clean_text("uh") == ""
+        assert mod.clean_text("Um") == ""
+        assert mod.clean_text("ER") == ""
+        assert mod.clean_text("ah") == ""
+
+    def test_empty_input(self):
+        assert mod.clean_text("") == ""
+
+
+class TestComputeChunks:
+    def test_single_chunk(self):
+        chunks = mod.compute_chunks(5000, 10000, 1000)
+        assert chunks == [(0, 5000)]
+
+    def test_exact_multiple(self):
+        chunks = mod.compute_chunks(10000, 5000, 0)
+        assert chunks == [(0, 5000), (5000, 10000)]
+
+    def test_overlap(self):
+        chunks = mod.compute_chunks(10000, 6000, 2000)
+        assert len(chunks) >= 2
+        # First chunk starts at 0
+        assert chunks[0][0] == 0
+        # Second chunk starts earlier due to overlap
+        assert chunks[1][0] == 4000
+
+    def test_zero_duration(self):
+        chunks = mod.compute_chunks(0, 5000, 1000)
+        assert chunks == []
+
+
+class TestDiscoverAudio:
+    def test_finds_supported_files(self, tmp_path: Path):
+        (tmp_path / "track.mp3").write_bytes(b"a")
+        (tmp_path / "track.wav").write_bytes(b"b")
+        (tmp_path / "readme.txt").write_bytes(b"c")
+        result = mod.discover_audio([str(tmp_path)])
+        assert len(result) == 2
+        extensions = {p.suffix for p in result}
+        assert extensions == {".mp3", ".wav"}
+
+    def test_nonexistent_path_warns(self, tmp_path: Path, capsys):
+        bogus = str(tmp_path / "no_such_dir")
+        result = mod.discover_audio([bogus])
+        assert result == []
+        assert "WARNING" in capsys.readouterr().err
+
+    def test_direct_file_path(self, tmp_path: Path):
+        audio = tmp_path / "track.flac"
+        audio.write_bytes(b"a")
+        result = mod.discover_audio([str(audio)])
+        assert len(result) == 1
+
+    def test_deduplicates(self, tmp_path: Path):
+        audio = tmp_path / "track.mp3"
+        audio.write_bytes(b"a")
+        result = mod.discover_audio([str(audio), str(audio)])
+        assert len(result) == 1
+
+
+class TestRenderTranscriptMarkdown:
+    def test_basic_output_structure(self):
+        metadata = mod.CraigInfoMetadata(guild="TestGuild", channel="general")
+        segments = [
+            {"start": 0.0, "end": 1.0, "speaker": "Alice", "text": "hello"},
+            {"start": 1.5, "end": 2.5, "speaker": "Bob", "text": "world"},
+        ]
+        result = mod.render_transcript_markdown(
+            run_id="test-run",
+            segments=segments,
+            metadata=metadata,
+            track_count=2,
+            quality_filter="balanced",
+            language_mode="auto",
+            runtime_sec=5.0,
+            error_count=0,
+        )
+        assert result.startswith("---\n")
+        assert "session: test-run" in result
+        assert "guild:" in result and "TestGuild" in result
+        assert "channel:" in result and "general" in result
+        assert "tags: [transcription]" in result
+        assert "[0.00s Alice] hello" in result
+        assert "[1.50s Bob] world" in result
+
+    def test_minimal_metadata(self):
+        metadata = mod.CraigInfoMetadata()
+        result = mod.render_transcript_markdown(
+            run_id="minimal",
+            segments=[],
+            metadata=metadata,
+            track_count=0,
+            quality_filter="off",
+            language_mode="auto",
+            runtime_sec=0.0,
+            error_count=0,
+        )
+        assert "session: minimal" in result
+        assert "guild:" not in result
+        assert "channel:" not in result
+
+    def test_tracks_and_notes(self):
+        metadata = mod.CraigInfoMetadata(
+            tracks=["Alice", "Bob"],
+            notes=["Recording started"],
+        )
+        result = mod.render_transcript_markdown(
+            run_id="run",
+            segments=[],
+            metadata=metadata,
+            track_count=2,
+            quality_filter="balanced",
+            language_mode="auto",
+            runtime_sec=1.0,
+            error_count=0,
+        )
+        assert "tracks:" in result
+        assert "  - Alice" in result or "Alice" in result
+        assert "craig_notes:" in result
+
+
+class TestVersionConstant:
+    def test_version_is_semver(self):
+        import re
+
+        assert re.match(r"^\d+\.\d+\.\d+$", mod.VERSION), (
+            f"VERSION '{mod.VERSION}' is not valid semver"
+        )
+
+    def test_version_is_string(self):
+        assert isinstance(mod.VERSION, str)

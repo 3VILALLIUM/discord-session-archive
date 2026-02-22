@@ -31,6 +31,13 @@ Default CLI behavior is newbie-first: run with no input args and it opens the fo
 If Craig `info.txt` contains notes, they are included in transcript frontmatter (`craig_notes`).
 Do not put personal/sensitive data in Craig notes unless you want it in transcript outputs.
 
+## Transcript Accuracy Notes
+
+`whisper-1` can misidentify background noise as words.
+Mumbling, cross-talk, low speaking volume, clipped audio, and poor microphone quality can all reduce transcript accuracy.
+
+For tabletop sessions, short numeric lines can be legitimate (for example dice rolls, counting, damage totals), so cleanup is intentionally conservative and may leave some noisy number-only lines.
+
 ## Privacy Boundary
 
 Do not commit audio, transcripts, logs, or secrets.
@@ -40,7 +47,9 @@ You are responsible for understanding and complying with all applicable laws and
 Guardrails are enforced by:
 - `.gitignore`
 - `.githooks/pre-commit`
+- `.githooks/pre-push`
 - `scripts/privacy_guard_check.ps1`
+- `scripts/privacy_guard_check.sh`
 - `.github/workflows/guard-raw-transcripts.yml`
 
 Details are in `docs/PRIVACY.md`.

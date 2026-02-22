@@ -27,7 +27,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Match, Optional, Pattern, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, List, Match, Optional, Pattern, Sequence, Set, Tuple, TypeVar
 
 try:
     from dotenv import load_dotenv
@@ -87,6 +87,9 @@ DEFAULT_OVERLAP_SEC = 5.0
 DEFAULT_MAX_WORKERS = min(4, os.cpu_count() or 1)  # per-track chunk pool
 DEFAULT_TRACK_WORKERS = 4  # track-level pool
 DEFAULT_API_WORKERS = 4  # global paid call cap
+TRANSIENT_FILE_ACCESS_WINERRORS = {5, 32, 33}
+TRANSIENT_FILE_ACCESS_RETRY_ATTEMPTS = 3
+TRANSIENT_FILE_ACCESS_RETRY_BASE_DELAY_SEC = 0.75
 VERSION = "2.0.0"
 NAME_MAP_MODES = ("replace", "none")
 QUALITY_FILTER_MODES = ("balanced", "strict", "off")
@@ -154,6 +157,7 @@ LANGUAGE_NAME_TO_CODE = {
 
 LOG_FORMAT = "%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
+T = TypeVar("T")
 
 
 @dataclass
@@ -259,7 +263,13 @@ def load_name_map(mode: str) -> Dict[str, str]:
         )
         sys.exit(1)
     try:
-        payload = json.loads(map_path.read_text(encoding="utf-8-sig"))
+        payload = json.loads(
+            run_with_transient_file_retry(
+                lambda: map_path.read_text(encoding="utf-8-sig"),
+                logger=logging.getLogger("discord_session_archive"),
+                operation=f"Reading name map file {map_path}",
+            )
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: failed reading name map file {map_path}: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -729,6 +739,101 @@ def suppress_repeated_short_line_noise(segments: List[Dict[str, Any]], strict: b
     return capped
 
 
+def suppress_numeric_counting_noise(segments: List[Dict[str, Any]], strict: bool) -> List[Dict[str, Any]]:
+    if not segments:
+        return segments
+
+    min_run_len = 14 if not strict else 12
+    max_gap_sec = 2.5 if not strict else 3.0
+    min_step_like_ratio = 0.65 if not strict else 0.55
+    min_value_span = 10 if not strict else 8
+    overlap_scan_window = 0.4
+    overlap_required_ratio = 0.12 if not strict else 0.10
+    very_long_run_len = 30 if not strict else 24
+    overlap_min_words = 3
+
+    by_speaker: Dict[str, List[Tuple[int, float, int]]] = {}
+    for idx, seg in enumerate(segments):
+        token = extract_single_word_token(str(seg.get("text", "")))
+        if token is None or not token.isdigit():
+            continue
+        speaker = str(seg.get("speaker", ""))
+        start = float(seg.get("start", 0.0))
+        by_speaker.setdefault(speaker, []).append((idx, start, int(token)))
+
+    if not by_speaker:
+        return segments
+
+    def has_richer_overlap(idx: int) -> bool:
+        seg = segments[idx]
+        seg_start = float(seg.get("start", 0.0))
+        speaker = str(seg.get("speaker", ""))
+
+        j = idx - 1
+        while j >= 0:
+            other = segments[j]
+            other_start = float(other.get("start", 0.0))
+            if seg_start - other_start > overlap_scan_window:
+                break
+            if str(other.get("speaker", "")) != speaker and count_word_tokens(str(other.get("text", ""))) >= overlap_min_words:
+                return True
+            j -= 1
+
+        j = idx + 1
+        while j < len(segments):
+            other = segments[j]
+            other_start = float(other.get("start", 0.0))
+            if other_start - seg_start > overlap_scan_window:
+                break
+            if str(other.get("speaker", "")) != speaker and count_word_tokens(str(other.get("text", ""))) >= overlap_min_words:
+                return True
+            j += 1
+
+        return False
+
+    flagged: Set[int] = set()
+
+    def evaluate_run(run: List[Tuple[int, float, int]]) -> None:
+        if len(run) < min_run_len:
+            return
+        values = [item[2] for item in run]
+        pair_count = len(values) - 1
+        if pair_count <= 0:
+            return
+        step_like_pairs = sum(1 for i in range(1, len(values)) if abs(values[i] - values[i - 1]) <= 1)
+        step_like_ratio = step_like_pairs / pair_count
+        value_span = max(values) - min(values)
+        if step_like_ratio < min_step_like_ratio or value_span < min_value_span:
+            return
+
+        overlap_hits = sum(1 for item in run if has_richer_overlap(item[0]))
+        overlap_required = max(2, int(len(run) * overlap_required_ratio))
+        if overlap_hits < overlap_required and len(run) < very_long_run_len:
+            return
+
+        # Keep the first token in the run and suppress the repetitive tail.
+        flagged.update(item[0] for item in run[1:])
+
+    for occurrences in by_speaker.values():
+        if len(occurrences) < min_run_len:
+            continue
+        run: List[Tuple[int, float, int]] = [occurrences[0]]
+        prev_start = occurrences[0][1]
+        for occurrence in occurrences[1:]:
+            idx, start, number = occurrence
+            if start - prev_start <= max_gap_sec:
+                run.append((idx, start, number))
+            else:
+                evaluate_run(run)
+                run = [(idx, start, number)]
+            prev_start = start
+        evaluate_run(run)
+
+    if not flagged:
+        return segments
+    return [seg for idx, seg in enumerate(segments) if idx not in flagged]
+
+
 def apply_quality_filter(segments: List[Dict[str, Any]], mode: str) -> List[Dict[str, Any]]:
     cleaned: List[Dict[str, Any]] = []
     for seg in segments:
@@ -742,6 +847,7 @@ def apply_quality_filter(segments: List[Dict[str, Any]], mode: str) -> List[Dict
     if mode != "off":
         cleaned = suppress_low_signal_one_word_noise(cleaned, strict=(mode == "strict"))
         cleaned = suppress_repeated_short_line_noise(cleaned, strict=(mode == "strict"))
+        cleaned = suppress_numeric_counting_noise(cleaned, strict=(mode == "strict"))
     return dedupe_overlap_segments(cleaned)
 
 
@@ -756,10 +862,24 @@ def setup_logger(quiet: bool, log_path: Optional[Path] = None) -> logging.Logger
         logger.removeHandler(handler)
 
     if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        fh = logging.FileHandler(log_path, encoding="utf-8")
-        fh.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATEFMT))
-        logger.addHandler(fh)
+        try:
+            run_with_transient_file_retry(
+                lambda: log_path.parent.mkdir(parents=True, exist_ok=True),
+                logger=logger,
+                operation=f"Preparing log directory {log_path.parent}",
+            )
+            fh = run_with_transient_file_retry(
+                lambda: logging.FileHandler(log_path, encoding="utf-8"),
+                logger=logger,
+                operation=f"Opening log file {log_path}",
+            )
+            fh.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATEFMT))
+            logger.addHandler(fh)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"WARNING: failed to open log file {log_path} ({exc}); continuing without file logging.",
+                file=sys.stderr,
+            )
 
     if not quiet:
         sh = logging.StreamHandler(stream=sys.stdout)
@@ -910,7 +1030,11 @@ def parse_start_time(raw: Optional[str]) -> Optional[datetime]:
 
 
 def parse_craig_info(path: Path) -> CraigInfoMetadata:
-    payload = path.read_text(encoding="utf-8-sig", errors="replace")
+    payload = run_with_transient_file_retry(
+        lambda: path.read_text(encoding="utf-8-sig", errors="replace"),
+        logger=logging.getLogger("discord_session_archive"),
+        operation=f"Reading metadata file {path}",
+    )
     raw_fields: Dict[str, List[str]] = {}
     current_key: Optional[str] = None
     for line in payload.splitlines():
@@ -1092,9 +1216,63 @@ def should_retry_openai_error(exc: BaseException) -> bool:
     return False
 
 
+def is_transient_file_access_error(exc: BaseException) -> bool:
+    if not isinstance(exc, OSError):
+        return False
+    winerror = getattr(exc, "winerror", None)
+    if isinstance(winerror, int) and winerror in TRANSIENT_FILE_ACCESS_WINERRORS:
+        return True
+    errno_value = getattr(exc, "errno", None)
+    if errno_value == 13:
+        return True
+    text = str(exc).lower()
+    return any(
+        token in text
+        for token in (
+            "access is denied",
+            "permission denied",
+            "being used by another process",
+            "sharing violation",
+            "access denied",
+        )
+    )
+
+
+def run_with_transient_file_retry(
+    action: Callable[[], T],
+    *,
+    logger: logging.Logger,
+    operation: str,
+    attempts: int = TRANSIENT_FILE_ACCESS_RETRY_ATTEMPTS,
+    base_delay_sec: float = TRANSIENT_FILE_ACCESS_RETRY_BASE_DELAY_SEC,
+) -> T:
+    if attempts < 1:
+        attempts = 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return action()
+        except Exception as exc:  # noqa: BLE001
+            if not is_transient_file_access_error(exc) or attempt >= attempts:
+                raise
+            delay = base_delay_sec * attempt
+            logger.warning(
+                "%s hit transient file access error (%s). Retrying in %.2fs (%d/%d).",
+                operation,
+                exc,
+                delay,
+                attempt,
+                attempts - 1,
+            )
+            time.sleep(delay)
+    raise RuntimeError("Retry helper exhausted without returning.")
+
+
 def read_chunk_bytes(path: Path) -> bytes:
-    with path.open("rb") as handle:
-        return handle.read()
+    return run_with_transient_file_retry(
+        lambda: path.read_bytes(),
+        logger=logging.getLogger("discord_session_archive"),
+        operation=f"Reading chunk file {path.name}",
+    )
 
 
 @retry(
@@ -1200,7 +1378,11 @@ def transcribe_track(
     ensure_pydub_loaded()
     if AudioSegment is None:  # pragma: no cover
         raise RuntimeError("Audio backend unavailable after pydub initialization.")
-    audio = AudioSegment.from_file(str(audio_path))
+    audio = run_with_transient_file_retry(
+        lambda: AudioSegment.from_file(str(audio_path)),
+        logger=logger,
+        operation=f"Loading track {audio_path.name}",
+    )
     duration_ms = len(audio)
     duration_sec = duration_ms / 1000.0
 
@@ -1221,7 +1403,11 @@ def transcribe_track(
 
     with tempfile.TemporaryDirectory(prefix="discord_session_archive_chunks_") as tmp:
         temp_dir = Path(tmp)
-        specs = export_chunks(audio, bounds, temp_dir, audio_path.stem)
+        specs = run_with_transient_file_retry(
+            lambda: export_chunks(audio, bounds, temp_dir, audio_path.stem),
+            logger=logger,
+            operation=f"Exporting chunks for {audio_path.name}",
+        )
         del audio
 
         all_segments: List[Dict[str, Any]] = []
@@ -1354,9 +1540,18 @@ def render_transcript_markdown(
     return "\n".join(lines)
 
 
-def write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+def write_text(path: Path, content: str, logger: Optional[logging.Logger] = None) -> None:
+    active_logger = logger or logging.getLogger("discord_session_archive")
+    run_with_transient_file_retry(
+        lambda: path.parent.mkdir(parents=True, exist_ok=True),
+        logger=active_logger,
+        operation=f"Preparing output directory {path.parent}",
+    )
+    run_with_transient_file_retry(
+        lambda: path.write_text(content, encoding="utf-8"),
+        logger=active_logger,
+        operation=f"Writing output file {path.name}",
+    )
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -1461,9 +1656,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         print(f"ERROR: output run directory exists: {run_dir} (use --force)", file=sys.stderr)
         sys.exit(1)
     if run_dir.exists() and args.force and not args.dry_run:
-        shutil.rmtree(run_dir)
+        run_with_transient_file_retry(
+            lambda: shutil.rmtree(run_dir),
+            logger=logging.getLogger("discord_session_archive"),
+            operation=f"Removing existing run directory {run_dir}",
+        )
     if not args.dry_run:
-        run_dir.mkdir(parents=True, exist_ok=True)
+        run_with_transient_file_retry(
+            lambda: run_dir.mkdir(parents=True, exist_ok=True),
+            logger=logging.getLogger("discord_session_archive"),
+            operation=f"Creating run directory {run_dir}",
+        )
 
     logger = setup_logger(quiet=args.quiet, log_path=None if args.dry_run else log_path)
     logger.info("Run ID: %s", run_id)
@@ -1556,7 +1759,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         runtime_sec=runtime,
         error_count=len(all_errors),
     )
-    write_text(transcript_path, transcript_md)
+    write_text(transcript_path, transcript_md, logger=logger)
     logger.info("Wrote %s", transcript_path)
     logger.info("Finished in %.2fs", runtime)
     print(f"Transcript run complete: {transcript_path}")

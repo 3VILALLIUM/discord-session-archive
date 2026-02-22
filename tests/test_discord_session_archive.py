@@ -147,6 +147,111 @@ def test_should_retry_openai_error_predicate(monkeypatch):
     assert mod.should_retry_openai_error(Exception()) is False
 
 
+def test_is_transient_file_access_error_predicate():
+    class FakeAccessError(OSError):
+        def __init__(self, message: str, winerror: int | None = None):
+            super().__init__(message)
+            self.winerror = winerror  # type: ignore[assignment]
+
+    assert mod.is_transient_file_access_error(FakeAccessError("Access is denied", winerror=5)) is True
+    assert mod.is_transient_file_access_error(FakeAccessError("sharing violation", winerror=32)) is True
+    assert mod.is_transient_file_access_error(FakeAccessError("permission denied")) is True
+    assert mod.is_transient_file_access_error(FakeAccessError("disk read error", winerror=123)) is False
+    assert mod.is_transient_file_access_error(RuntimeError("Access is denied")) is False
+
+
+def test_run_with_transient_file_retry_recovers(monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    attempts = {"count": 0}
+
+    def flaky_action():
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise FakeAccessError()
+        return "ok"
+
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+    logger = mod.setup_logger(quiet=True)
+    result = mod.run_with_transient_file_retry(flaky_action, logger=logger, operation="test action")
+
+    assert result == "ok"
+    assert attempts["count"] == 3
+
+
+def test_read_chunk_bytes_retries_transient_access_error(tmp_path: Path, monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    chunk_path = tmp_path / "chunk.flac"
+    chunk_path.write_bytes(b"abc123")
+    original_read_bytes = Path.read_bytes
+    calls = {"count": 0}
+
+    def flaky_read_bytes(self: Path):
+        if self == chunk_path:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise FakeAccessError()
+        return original_read_bytes(self)
+
+    monkeypatch.setattr(mod.Path, "read_bytes", flaky_read_bytes)
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+
+    payload = mod.read_chunk_bytes(chunk_path)
+    assert payload == b"abc123"
+    assert calls["count"] == 2
+
+
+def test_setup_logger_falls_back_when_log_file_handler_fails(tmp_path: Path, monkeypatch, capsys):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    def fail_file_handler(*_args, **_kwargs):
+        raise FakeAccessError()
+
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(mod.logging, "FileHandler", fail_file_handler)
+
+    logger = mod.setup_logger(quiet=False, log_path=tmp_path / "logs" / "run.log")
+    err = capsys.readouterr().err.lower()
+
+    assert "continuing without file logging" in err
+    assert any(isinstance(handler, mod.logging.StreamHandler) for handler in logger.handlers)
+
+
+def test_write_text_retries_transient_access_error(tmp_path: Path, monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    target = tmp_path / "out" / "result.md"
+    original_write_text = Path.write_text
+    calls = {"count": 0}
+
+    def flaky_write_text(self: Path, *args, **kwargs):
+        if self == target:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise FakeAccessError()
+        return original_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(mod.Path, "write_text", flaky_write_text)
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+
+    mod.write_text(target, "hello retry")
+    assert calls["count"] == 2
+    assert target.read_text(encoding="utf-8") == "hello retry"
+
+
 def test_call_whisper_with_language_fallback_retries_without_hint(tmp_path: Path, monkeypatch):
     chunk_path = tmp_path / "chunk.flac"
     chunk_path.write_bytes(b"fake")
@@ -215,6 +320,70 @@ def test_transcribe_track_auto_language_uses_safe_iso_hint(tmp_path: Path, monke
     assert track["segments"]
 
 
+def test_transcribe_track_retries_audio_load_on_transient_access_error(tmp_path: Path, monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    audio_path = tmp_path / "speaker.aac"
+    audio_path.write_bytes(b"audio")
+    calls = {"count": 0}
+
+    def flaky_from_file(path):  # noqa: ARG001
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise FakeAccessError()
+        return FakeAudioSegment(2_000)
+
+    monkeypatch.setattr(mod, "AudioSegment", SimpleNamespace(from_file=flaky_from_file))
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+    logger = mod.setup_logger(quiet=True)
+
+    track = mod.transcribe_track(
+        client=None,
+        audio_path=audio_path,
+        name_map={},
+        chunk_sec=2,
+        overlap_sec=0,
+        max_workers=1,
+        language="auto",
+        dry_run=True,
+        api_semaphore=threading.BoundedSemaphore(1),
+        logger=logger,
+    )
+
+    assert calls["count"] == 2
+    assert track["planned_chunks"] == 1
+
+
+def test_load_name_map_retries_transient_read_error(tmp_path: Path, monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    map_path = tmp_path / "name_replace_map.json"
+    write_json(map_path, {"speaker one": "Player One"})
+    original_read_text = Path.read_text
+    calls = {"count": 0}
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self == map_path:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise FakeAccessError()
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(mod, "NAME_REPLACE_MAP_PATH", map_path)
+    monkeypatch.setattr(mod.Path, "read_text", flaky_read_text)
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+
+    loaded = mod.load_name_map("replace")
+    assert calls["count"] == 2
+    assert loaded == {"speaker one": "Player One"}
+
+
 def test_load_name_map_replace_valid(tmp_path: Path, monkeypatch):
     map_path = tmp_path / "name_replace_map.json"
     write_json(map_path, {"speaker one": "Player A", "SPEAKER-TWO": "Player B"})
@@ -259,6 +428,32 @@ def test_parse_craig_info_and_run_id_from_info(tmp_path: Path):
     assert parsed.start_time_utc is not None
     assert run_id.startswith("Dungeon_of_The_Mad_Mage_2026-02-13T02-13-52.421Z")
     assert ":" not in run_id
+
+
+def test_parse_craig_info_retries_transient_read_error(tmp_path: Path, monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    info = tmp_path / "info.txt"
+    info.write_text("Guild: Test Guild\nStart time: 2026-02-13T02:13:52.421Z\n", encoding="utf-8")
+    original_read_text = Path.read_text
+    calls = {"count": 0}
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self == info:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise FakeAccessError()
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(mod.Path, "read_text", flaky_read_text)
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+
+    parsed = mod.parse_craig_info(info)
+    assert calls["count"] == 2
+    assert parsed.guild == "Test Guild"
 
 
 def test_build_run_id_strips_guild_numeric_id_suffix(tmp_path: Path):
@@ -864,6 +1059,113 @@ def test_quality_filter_keeps_low_information_token_when_not_high_frequency():
     filtered = mod.apply_quality_filter(segments, mode="balanced")
     kept = [seg for seg in filtered if seg["speaker"] == "Azure" and seg["text"] == "yep"]
     assert len(kept) == 4
+
+
+def test_quality_filter_suppresses_long_numeric_counting_burst_with_overlaps():
+    segments = []
+    for i in range(8, 40):
+        start = float(i - 8)
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.4,
+                "speaker": "Oma",
+                "text": f"{i}.",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+        if i % 2 == 0:
+            segments.append(
+                {
+                    "start": start,
+                    "end": start + 1.0,
+                    "speaker": "DM",
+                    "text": "we continue down the hallway together",
+                    "avg_logprob": -0.2,
+                    "no_speech_prob": 0.05,
+                    "compression_ratio": 1.0,
+                }
+            )
+
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    oma_number_lines = [
+        seg
+        for seg in filtered
+        if seg["speaker"] == "Oma"
+        and mod.extract_single_word_token(str(seg["text"]))
+        and mod.extract_single_word_token(str(seg["text"])).isdigit()
+    ]
+
+    assert len(oma_number_lines) <= 1
+    assert any(seg["speaker"] == "DM" for seg in filtered)
+
+
+def test_quality_filter_keeps_sparse_number_only_lines_for_dice_calls():
+    segments = [
+        {
+            "start": 10.0,
+            "end": 10.2,
+            "speaker": "Oma",
+            "text": "19.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 30.0,
+            "end": 30.2,
+            "speaker": "Oma",
+            "text": "7.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 60.0,
+            "end": 60.2,
+            "speaker": "Oma",
+            "text": "15.",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+        {
+            "start": 61.0,
+            "end": 62.0,
+            "speaker": "DM",
+            "text": "that hits, roll damage",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.05,
+            "compression_ratio": 1.0,
+        },
+    ]
+
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    oma_numbers = [seg["text"] for seg in filtered if seg["speaker"] == "Oma"]
+    assert oma_numbers == ["19.", "7.", "15."]
+
+
+def test_quality_filter_keeps_short_numeric_countdown_sequence():
+    segments = []
+    for i in range(10, 0, -1):
+        start = float(10 - i)
+        segments.append(
+            {
+                "start": start,
+                "end": start + 0.4,
+                "speaker": "Oma",
+                "text": f"{i}.",
+                "avg_logprob": -0.2,
+                "no_speech_prob": 0.05,
+                "compression_ratio": 1.0,
+            }
+        )
+
+    filtered = mod.apply_quality_filter(segments, mode="balanced")
+    oma_numbers = [seg["text"] for seg in filtered if seg["speaker"] == "Oma"]
+    assert len(oma_numbers) == 10
 
 
 def test_quality_filter_strict_is_at_least_as_aggressive_as_balanced():

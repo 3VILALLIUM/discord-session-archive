@@ -31,3 +31,5 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 
 `whisper-1` frequently misidentifies background noise as words and will try to transcribe them.
 This project corrects for that with post-processing heuristics that suppress repeated low-information artifacts (for example repetitive `you`, `okay`, or `thank you` bursts), remove overlap duplicates, and keep higher-signal lines.
+Accuracy still depends on source audio quality: mumbling, low speaking volume, cross-talk, clipped audio, and poor microphones can all reduce results.
+For tabletop sessions, number-only lines can be real speech (for example dice rolls and totals), so filtering is intentionally conservative and may keep some numeric artifacts.

@@ -28,6 +28,11 @@ jobs:
           git fetch --no-tags origin "${GH_SHA}"
           git checkout --detach FETCH_HEAD
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Run privacy guard
         shell: bash
         run: bash scripts/privacy_guard_check.sh

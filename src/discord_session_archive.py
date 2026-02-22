@@ -1256,12 +1256,12 @@ def run_with_transient_file_retry(
                 raise
             delay = base_delay_sec * attempt
             logger.warning(
-                "%s hit transient file access error (%s). Retrying in %.2fs (%d/%d).",
+                "%s hit transient file access error (%s). Retry %d/%d in %.2fs.",
                 operation,
                 exc,
-                delay,
                 attempt,
                 attempts - 1,
+                delay,
             )
             time.sleep(delay)
     raise RuntimeError("Retry helper exhausted without returning.")

@@ -227,7 +227,7 @@ function Show-BootstrapPlan {
     Write-Host ""
     Write-Host "Network actions:"
     Write-Host "- pip install --upgrade pip"
-    Write-Host "- pip install -r requirements.txt"
+    Write-Host "- pip install --require-hashes -r requirements.lock.txt"
     Write-Host "- optional package-manager installs for python/ffmpeg/git"
     Write-Host ""
     Write-Host "Possible side effects:"
@@ -415,7 +415,7 @@ if (-not (Test-Path ".venv\Scripts\python.exe") -and -not (Test-Path ".venv/bin/
 
 $py = Get-VenvPythonPath
 Invoke-NativeStep -Title "Upgrade pip" -Command @($py, "-m", "pip", "install", "--upgrade", "pip")
-Invoke-NativeStep -Title "Install requirements" -Command @($py, "-m", "pip", "install", "-r", "requirements.txt")
+Invoke-NativeStep -Title "Install requirements" -Command @($py, "-m", "pip", "install", "--require-hashes", "-r", "requirements.lock.txt")
 Invoke-NativeStep -Title "Set git hooks path" -Command @("git", "config", "core.hooksPath", ".githooks")
 Invoke-NativeStep -Title "Show git hooks path" -Command @("git", "config", "--get", "core.hooksPath")
 

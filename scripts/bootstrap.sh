@@ -237,7 +237,7 @@ show_bootstrap_plan() {
   echo
   echo "Network actions:"
   echo "- pip install --upgrade pip"
-  echo "- pip install -r requirements.txt"
+  echo "- pip install --require-hashes -r requirements.lock.txt"
   echo "- optional package-manager installs for python/ffmpeg/git"
   echo
   echo "Possible side effects:"
@@ -420,7 +420,7 @@ else
 fi
 
 run_step "Upgrade pip" "$py" -m pip install --upgrade pip
-run_step "Install requirements" "$py" -m pip install -r requirements.txt
+run_step "Install requirements" "$py" -m pip install --require-hashes -r requirements.lock.txt
 run_step "Set git hooks path" git config core.hooksPath .githooks
 run_step "Show git hooks path" git config --get core.hooksPath
 run_step "Initialize local config templates" bash ./scripts/init_local_config.sh

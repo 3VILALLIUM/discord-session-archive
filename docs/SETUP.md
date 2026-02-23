@@ -192,8 +192,14 @@ Useful runtime flags:
 - `--track-workers 4` track-level parallelism
 - `--api-workers 4` global paid API concurrency cap
 - `--max-workers <n>` per-track chunk worker pool
+- `--chunk-sec <n>` chunk duration in seconds
+- `--overlap-sec <n>` chunk overlap in seconds
+- `--output-root <path>` write run folders to a custom root
+- `--label <text>` set explicit run folder label
 - `--name-map-mode none` disables replacement map
 - `--force` overwrite existing run directory
+- `--dry-run` preview planned work without writing files
+- `--quiet` suppress console logs
 
 Example (faster + force English):
 
@@ -216,7 +222,7 @@ _local/runs/<run_id>/<run_id>_transcript.md
 _local/runs/<run_id>/<run_id>_log.md
 ```
 
-No JSON and no NotebookLM file are generated.
+Only transcript and run-log markdown artifacts are generated for each run.
 
 Run ID precedence:
 

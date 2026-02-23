@@ -62,25 +62,81 @@ Fix:
 
 ## Runtime Failures
 
-### Removed flag error for `--clean`, `--json`, `--notebooklm`
+### Input path/picker confusion (`--input`, `--pick-folder`)
 
 Cause:
 
-- These flags were intentionally removed in single-run newbie mode.
+- `--input` and `--pick-folder` were mixed in a way that does not match your intent.
+- Tkinter picker may be unavailable in your environment.
 
 Fix:
 
-- Run without those flags. Cleaned Markdown output is always generated automatically.
+1. For explicit paths, use only `--input`:
 
-### Removed mode error for `--name-map-mode handle|real`
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
+```
+
+2. To force picker flow, use `--pick-folder` with no `--input`:
+
+```powershell
+python .\src\discord_session_archive.py --pick-folder
+```
+
+3. If picker is unavailable, always pass `--input` manually.
+
+### Existing run directory error (`--label`, `--force`)
 
 Cause:
 
-- `handle` and `real` were removed.
+- The computed run folder already exists under the output root.
 
 Fix:
 
-- Use `--name-map-mode replace` (default) and edit `_local/config/name_replace_map.json`.
+1. Change label to produce a new run folder:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --label "session-2026-02-23"
+```
+
+2. Or overwrite the existing run folder intentionally:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --force
+```
+
+### Output location confusion (`--output-root`)
+
+Cause:
+
+- Output is being written to a non-default root, or you expected a different destination.
+
+Fix:
+
+1. Pin output root explicitly:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --output-root "C:\transcripts\runs"
+```
+
+2. Check artifacts at:
+
+```text
+<output-root>/<run_id>/<run_id>_transcript.md
+<output-root>/<run_id>/<run_id>_log.md
+```
+
+### Invalid `--name-map-mode` value
+
+Cause:
+
+- The CLI only supports `replace` and `none`.
+
+Fix:
+
+- Use `--name-map-mode replace` (default) for alias replacement.
+- Use `--name-map-mode none` to disable replacements.
+- Edit `_local/config/name_replace_map.json` when using `replace`.
 
 ### Name map file missing
 
@@ -117,12 +173,6 @@ Example:
   "example person one": "Example Preferred Name One"
 }
 ```
-
-### Existing run directory error
-
-Fix:
-
-- Use `--force` or choose a different `--label`.
 
 ### Where are run logs?
 
@@ -220,15 +270,67 @@ python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quali
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter off
 ```
 
-### Run is too slow
+### Quality/language tuning (`--quality-filter`, `--language`)
 
-Tune workers:
+Cause:
+
+- Auto language detection picked the wrong language.
+- Filtering profile is too strict or too permissive for your audio.
+
+Fix:
+
+1. Keep auto language and use balanced filtering (default):
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language auto --quality-filter balanced
+```
+
+2. Force known language when drift appears:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language en --quality-filter strict
+```
+
+3. Temporarily relax filtering during investigation:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter off
+```
+
+### Run is too slow (worker/chunk tuning)
+
+Cause:
+
+- Worker settings are mismatched to local CPU, storage, or API rate limits.
+- Chunk sizing is inefficient for the audio material.
+
+Fix:
+
+1. Start with moderate parallelism:
 
 ```powershell
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --track-workers 4 --api-workers 4 --max-workers 4
 ```
 
-If your machine/API rate limits are tight, reduce workers.
+2. Tune chunking if needed:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --chunk-sec 90 --overlap-sec 1.5
+```
+
+3. If rate limits or machine pressure appear, reduce worker counts.
+
+### Safe debugging (`--dry-run`, `--quiet`)
+
+Use debug-friendly flags to validate behavior safely:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run
+```
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quiet
+```
 
 ## Privacy Guard Failures
 

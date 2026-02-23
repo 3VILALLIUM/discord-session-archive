@@ -46,6 +46,8 @@ Invoke-NativeStep "privacy_guard_check.sh" { bash "./scripts/privacy_guard_check
 
 Invoke-NativeStep "pip check" { & $py -m pip check }
 
+Invoke-NativeStep "pip-audit" { & $py -m pip_audit --progress-spinner off }
+
 Invoke-NativeStep "compileall src tests" { & $py -m compileall src tests }
 
 Invoke-NativeStep "pytest -q" { & $py -m pytest -q }

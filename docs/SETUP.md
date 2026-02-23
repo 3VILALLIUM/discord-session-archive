@@ -102,7 +102,7 @@ Bootstrap done state:
 
 Install:
 
-- Python 3.10+
+- Python 3.11+
 - ffmpeg (on `PATH`)
 - Git
 
@@ -120,14 +120,14 @@ winget install --id Git.Git -e --source winget
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.lock.txt
 ```
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.lock.txt
 ```
 
 ### 3. Configure hooks
@@ -274,7 +274,7 @@ You are ready when:
 - `ffmpeg -version` works
 - `git --version` works
 - `.venv` exists
-- `pip install -r requirements.txt` completed
+- `pip install --require-hashes -r requirements.lock.txt` completed
 - `git config --get core.hooksPath` returns `.githooks`
 - `.env` has real `OPENAI_API_KEY`
 - `_local/config/name_replace_map.json` exists

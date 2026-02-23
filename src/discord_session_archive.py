@@ -87,6 +87,11 @@ DEFAULT_OVERLAP_SEC = 5.0
 DEFAULT_MAX_WORKERS = min(4, os.cpu_count() or 1)  # per-track chunk pool
 DEFAULT_TRACK_WORKERS = 4  # track-level pool
 DEFAULT_API_WORKERS = 4  # global paid call cap
+MAX_DISCOVERY_AUDIO_FILES = 10_000
+MAX_DISCOVERY_DIRS = 5_000
+MAX_INFO_SEARCH_DIRS = 5_000
+MAX_INFO_ASCENT_LEVELS = 4
+WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 TRANSIENT_FILE_ACCESS_WINERRORS = {5, 32, 33}
 TRANSIENT_FILE_ACCESS_RETRY_ATTEMPTS = 3
 TRANSIENT_FILE_ACCESS_RETRY_BASE_DELAY_SEC = 0.75
@@ -211,6 +216,63 @@ def sanitize_run_component(text: str) -> str:
     clean = re.sub(r"_+", "_", clean)
     clean = clean.strip("._-")
     return clean or "session"
+
+
+def path_for_display(path: Path) -> str:
+    return path.name or str(path)
+
+
+def is_link_or_reparse_point(path: Path) -> bool:
+    try:
+        stat_result = path.lstat()
+    except OSError:
+        return False
+    if path.is_symlink():
+        return True
+    return bool(getattr(stat_result, "st_file_attributes", 0) & WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def find_link_or_reparse_descendant(root: Path) -> Optional[Path]:
+    for current_root, dirs, files in os.walk(root, topdown=True, followlinks=False):
+        current_path = Path(current_root)
+        kept_dirs: List[str] = []
+        for dirname in sorted(dirs):
+            child_dir = current_path / dirname
+            if is_link_or_reparse_point(child_dir):
+                return child_dir
+            kept_dirs.append(dirname)
+        dirs[:] = kept_dirs
+
+        for filename in sorted(files):
+            child_file = current_path / filename
+            if is_link_or_reparse_point(child_file):
+                return child_file
+    return None
+
+
+def ensure_safe_force_delete_target(run_dir: Path, output_root: Path) -> None:
+    if not run_dir.exists():
+        return
+
+    if is_link_or_reparse_point(run_dir):
+        raise ValueError(f"refusing --force delete for linked run directory: {path_for_display(run_dir)}")
+
+    resolved_root = output_root.resolve()
+    resolved_run_dir = run_dir.resolve()
+
+    if os.path.commonpath([str(resolved_root), str(resolved_run_dir)]) != str(resolved_root):
+        raise ValueError(
+            f"refusing --force delete outside output root: {path_for_display(resolved_run_dir)}"
+        )
+
+    if resolved_run_dir == resolved_root:
+        raise ValueError(f"refusing --force delete of output root: {path_for_display(resolved_root)}")
+
+    linked_descendant = find_link_or_reparse_descendant(run_dir)
+    if linked_descendant is not None:
+        raise ValueError(
+            f"refusing --force delete with linked content: {path_for_display(linked_descendant)}"
+        )
 
 
 def strip_discord_snowflake_tokens(text: str) -> str:
@@ -877,7 +939,7 @@ def setup_logger(quiet: bool, log_path: Optional[Path] = None) -> logging.Logger
             logger.addHandler(fh)
         except Exception as exc:  # noqa: BLE001
             print(
-                f"WARNING: failed to open log file {log_path} ({exc}); continuing without file logging.",
+                f"WARNING: failed to open log file {path_for_display(log_path)} ({exc}); continuing without file logging.",
                 file=sys.stderr,
             )
 
@@ -904,19 +966,57 @@ def build_client(api_key: str) -> OpenAI:
 
 def discover_audio(paths: Sequence[str]) -> List[Path]:
     discovered: List[Path] = []
+    limit_reached = False
     for raw in paths:
         path = Path(raw).expanduser().resolve()
         if not path.exists():
-            print(f"WARNING: path not found: {path}", file=sys.stderr)
+            print(f"WARNING: path not found: {path_for_display(path)}", file=sys.stderr)
             continue
         if path.is_file():
             if path.suffix.lower() in SUPPORTED_EXTS:
                 discovered.append(path)
             continue
 
-        for child in sorted(path.rglob("*")):
-            if child.is_file() and child.suffix.lower() in SUPPORTED_EXTS:
-                discovered.append(child.resolve())
+        scanned_dirs = 0
+        for root, dirs, files in os.walk(path, topdown=True, followlinks=False):
+            scanned_dirs += 1
+            if scanned_dirs > MAX_DISCOVERY_DIRS:
+                print(
+                    f"WARNING: directory scan limit reached under: {path_for_display(path)}",
+                    file=sys.stderr,
+                )
+                break
+
+            kept_dirs: List[str] = []
+            for dirname in sorted(dirs):
+                child_dir = Path(root) / dirname
+                if is_link_or_reparse_point(child_dir):
+                    print(
+                        f"WARNING: skipped linked directory during scan: {path_for_display(child_dir)}",
+                        file=sys.stderr,
+                    )
+                    continue
+                kept_dirs.append(dirname)
+            dirs[:] = kept_dirs
+
+            for filename in sorted(files):
+                child = Path(root) / filename
+                if child.suffix.lower() in SUPPORTED_EXTS and child.is_file():
+                    discovered.append(child.resolve())
+                    if len(discovered) >= MAX_DISCOVERY_AUDIO_FILES:
+                        print(
+                            f"WARNING: audio discovery limit reached ({MAX_DISCOVERY_AUDIO_FILES}); "
+                            "skipping remaining files.",
+                            file=sys.stderr,
+                        )
+                        limit_reached = True
+                        break
+
+            if limit_reached:
+                break
+
+        if limit_reached:
+            break
 
     unique: List[Path] = []
     seen = set()
@@ -953,13 +1053,41 @@ def find_info_txt(input_paths: Sequence[str], audio_files: Sequence[Path]) -> Op
             root_info = path / "info.txt"
             if root_info.exists():
                 candidates.append(root_info.resolve())
-            for child in sorted(path.rglob("info.txt")):
-                candidates.append(child.resolve())
-                break
+
+            scanned_dirs = 0
+            found_nested_info = False
+            for root, dirs, files in os.walk(path, topdown=True, followlinks=False):
+                scanned_dirs += 1
+                if scanned_dirs > MAX_INFO_SEARCH_DIRS:
+                    print(
+                        f"WARNING: info.txt scan limit reached under: {path_for_display(path)}",
+                        file=sys.stderr,
+                    )
+                    break
+
+                kept_dirs: List[str] = []
+                for dirname in sorted(dirs):
+                    child_dir = Path(root) / dirname
+                    if is_link_or_reparse_point(child_dir):
+                        continue
+                    kept_dirs.append(dirname)
+                dirs[:] = kept_dirs
+
+                for filename in sorted(files):
+                    if filename.lower() != "info.txt":
+                        continue
+                    child = Path(root) / filename
+                    if child.resolve() != root_info.resolve():
+                        candidates.append(child.resolve())
+                        found_nested_info = True
+                    break
+
+                if found_nested_info:
+                    break
 
     for audio in audio_files:
         cur = audio.parent
-        for _ in range(4):
+        for _ in range(MAX_INFO_ASCENT_LEVELS):
             candidate = cur / "info.txt"
             if candidate.exists():
                 candidates.append(candidate.resolve())
@@ -1514,7 +1642,7 @@ def render_transcript_markdown(
     if metadata.start_time_raw:
         lines.append(f"start_time: {yaml_quote(metadata.start_time_raw)}")
     if metadata.path:
-        lines.append(f"source_info_file: {yaml_quote(metadata.path.as_posix())}")
+        lines.append(f"source_info_file: {yaml_quote(metadata.path.name)}")
     if metadata.tracks:
         lines.append("tracks:")
         for track in metadata.tracks:
@@ -1649,7 +1777,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     mapped_metadata = apply_name_map_to_metadata(metadata, name_map)
 
     run_id = build_run_id(args.label, metadata)
-    run_dir = Path(args.output_root).resolve() / run_id
+    output_root = Path(args.output_root).resolve()
+    run_dir = output_root / run_id
     transcript_path = run_dir / f"{run_id}_transcript.md"
     log_path = run_dir / f"{run_id}_log.md"
 
@@ -1657,6 +1786,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         print(f"ERROR: output run directory exists: {run_dir} (use --force)", file=sys.stderr)
         sys.exit(1)
     if run_dir.exists() and args.force and not args.dry_run:
+        try:
+            ensure_safe_force_delete_target(run_dir=run_dir, output_root=output_root)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
         run_with_transient_file_retry(
             lambda: shutil.rmtree(run_dir),
             logger=logging.getLogger("discord_session_archive"),
@@ -1717,7 +1851,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 tracks.append(track)
                 logger.info("Track complete: %s (%d segments)", audio_file.name, len(track["segments"]))
             except Exception as exc:  # noqa: BLE001
-                logger.error("Failed processing %s: %s", audio_file, exc)
+                logger.error("Failed processing %s: %s", audio_file.name, exc)
                 tracks.append(
                     {
                         "source_file": audio_file.name,

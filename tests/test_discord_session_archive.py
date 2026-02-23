@@ -1401,6 +1401,13 @@ class TestDiscoverAudio:
         result = mod.discover_audio([str(audio), str(audio)])
         assert len(result) == 1
 
+    def test_respects_discovery_file_limit(self, tmp_path: Path, monkeypatch):
+        for idx in range(3):
+            (tmp_path / f"track_{idx}.mp3").write_bytes(b"a")
+        monkeypatch.setattr(mod, "MAX_DISCOVERY_AUDIO_FILES", 2)
+        result = mod.discover_audio([str(tmp_path)])
+        assert len(result) == 2
+
 
 class TestRenderTranscriptMarkdown:
     def test_basic_output_structure(self):
@@ -1461,6 +1468,56 @@ class TestRenderTranscriptMarkdown:
         assert "tracks:" in result
         assert "  - Alice" in result or "Alice" in result
         assert "craig_notes:" in result
+
+    def test_source_info_file_uses_basename_only(self):
+        metadata = mod.CraigInfoMetadata(path=Path("C:/sensitive/path/info.txt"))
+        result = mod.render_transcript_markdown(
+            run_id="run",
+            segments=[],
+            metadata=metadata,
+            track_count=0,
+            quality_filter="balanced",
+            language_mode="auto",
+            runtime_sec=0.0,
+            error_count=0,
+        )
+        assert "source_info_file:" in result
+        assert "info.txt" in result
+        assert "sensitive/path" not in result
+
+
+class TestForceDeleteSafety:
+    def test_force_delete_allows_contained_directory(self, tmp_path: Path):
+        output_root = tmp_path / "runs"
+        run_dir = output_root / "demo"
+        run_dir.mkdir(parents=True)
+        mod.ensure_safe_force_delete_target(run_dir, output_root)
+
+    def test_force_delete_rejects_outside_output_root(self, tmp_path: Path):
+        output_root = tmp_path / "runs"
+        output_root.mkdir(parents=True)
+        run_dir = tmp_path / "outside"
+        run_dir.mkdir(parents=True)
+        with pytest.raises(ValueError):
+            mod.ensure_safe_force_delete_target(run_dir, output_root)
+
+    def test_force_delete_rejects_linked_directory(self, tmp_path: Path, monkeypatch):
+        output_root = tmp_path / "runs"
+        run_dir = output_root / "demo"
+        run_dir.mkdir(parents=True)
+        monkeypatch.setattr(mod, "is_link_or_reparse_point", lambda _path: True)
+        with pytest.raises(ValueError):
+            mod.ensure_safe_force_delete_target(run_dir, output_root)
+
+    def test_force_delete_rejects_linked_descendant(self, tmp_path: Path, monkeypatch):
+        output_root = tmp_path / "runs"
+        run_dir = output_root / "demo"
+        linked_child = run_dir / "linked-child"
+        linked_child.mkdir(parents=True)
+
+        monkeypatch.setattr(mod, "is_link_or_reparse_point", lambda path: path == linked_child)
+        with pytest.raises(ValueError):
+            mod.ensure_safe_force_delete_target(run_dir, output_root)
 
 
 class TestVersionConstant:

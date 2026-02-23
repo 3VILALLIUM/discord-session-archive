@@ -228,7 +228,7 @@ python .\src\discord_session_archive.py --pick-folder
 # Pin a custom output root
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --output-root "D:\session-archive\runs"
 
-# Force a predictable run folder label under the selected root
+# Provide a label prefix for the run folder (a timestamp suffix is appended automatically)
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --output-root "D:\session-archive\runs" --label "campaign-12-session-03"
 ```
 

@@ -26,7 +26,8 @@ foreach ($path in $tracked) {
 
     if ($lower -match '(^|/)transcript(\.cleaned)?\.md$' -or
         $lower -match '(^|/)transcript\.json$' -or
-        $lower -match '(^|/)notebooklm\.md$') {
+        $lower -match '(^|/)notebooklm\.md$' -or
+        $lower -match '(^|/)[^/]+_(transcript|log)\.md$') {
         [void]$violations.Add("$path [generated transcript artifact]")
         continue
     }

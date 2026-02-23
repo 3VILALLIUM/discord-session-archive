@@ -27,7 +27,8 @@ for path in "${tracked[@]}"; do
 
   if [[ "$lower" =~ (^|/)transcript(\.cleaned)?\.md$ ]] || \
      [[ "$lower" =~ (^|/)transcript\.json$ ]] || \
-     [[ "$lower" =~ (^|/)notebooklm\.md$ ]]; then
+     [[ "$lower" =~ (^|/)notebooklm\.md$ ]] || \
+     [[ "$lower" =~ (^|/)[^/]+_(transcript|log)\.md$ ]]; then
     violations+=("$path [generated transcript artifact]")
     continue
   fi

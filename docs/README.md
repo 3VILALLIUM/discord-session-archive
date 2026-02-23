@@ -30,6 +30,7 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 ## Doc ownership
 
 - `docs/SETUP.md` owns CLI flag definitions and defaults.
+- `docs/ARCHITECTURE.md` owns the run artifact/output contract and run ID naming behavior.
 - `docs/TROUBLESHOOTING.md` owns symptom-to-fix recipes.
 - `README.md` keeps only high-level summary and links.
 

@@ -184,7 +184,7 @@ Example:
 
 ### Where are run logs?
 
-Each run writes a markdown log file alongside the transcript:
+Each non-dry run writes a markdown log file alongside the transcript:
 
 ```text
 _local/runs/<run_id>/<run_id>_log.md
@@ -378,16 +378,18 @@ python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --chunk
 
 3. If rate limits or machine pressure appear, reduce worker counts.
 
-### Safe debugging (`--dry-run`, `--quiet`)
+### Side-effect-safe debugging (`--dry-run`)
 
-Use debug-friendly flags to validate behavior safely:
+Use `--dry-run` to validate behavior without writing transcript/log files or making paid transcription calls:
 
 ```powershell
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run
 ```
 
+Use `--quiet` only to reduce console output. By itself, it still performs normal run work and writes artifacts.
+
 ```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quiet
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run --quiet
 ```
 
 ## Privacy Guard Failures

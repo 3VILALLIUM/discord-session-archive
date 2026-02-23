@@ -116,8 +116,8 @@ function Get-SetupCanonicalFlags {
 
     $flagsMap = @{}
     foreach ($row in $tableRows) {
-        $matches = [regex]::Matches($row, "--[a-z0-9-]+")
-        foreach ($match in $matches) {
+        $rowFlagMatches = [regex]::Matches($row, "--[a-z0-9-]+")
+        foreach ($match in $rowFlagMatches) {
             $flagsMap[$match.Value] = $true
         }
     }
@@ -139,8 +139,8 @@ function Get-TroubleshootingCliFlags {
         if ($line -notmatch "^\s*python\s+\.\\src\\discord_session_archive\.py\b") {
             continue
         }
-        $matches = [regex]::Matches($line, "--[a-z0-9-]+")
-        foreach ($match in $matches) {
+        $lineFlagMatches = [regex]::Matches($line, "--[a-z0-9-]+")
+        foreach ($match in $lineFlagMatches) {
             $flagsMap[$match.Value] = $true
         }
     }

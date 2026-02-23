@@ -2,6 +2,13 @@
 
 Back to docs index: `docs/README.md`
 
+Maintenance note:
+
+- This document owns CLI flag definitions and defaults.
+- When `parse_args` behavior changes, update this document first.
+- After that, update `docs/TROUBLESHOOTING.md` symptoms and keep `README.md` link-oriented.
+- Validate with `.\scripts\docs_consistency_check.ps1 -ValidateTroubleshooting`.
+
 ## Before You Run Scripts
 
 Do not run scripts you are unfamiliar with. Review setup scripts before execution, especially in newly cloned repositories.
@@ -166,7 +173,7 @@ The same map handles:
 - Discord handle aliases
 - spoken-name aliases
 
-The default mode is `--name-map-mode replace`.
+Canonical default for `--name-map-mode` is in the runtime flags table in this document.
 Use `--name-map-mode none` to disable replacements.
 
 ## Running the CLI

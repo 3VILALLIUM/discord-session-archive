@@ -190,7 +190,7 @@ Runtime flags (canonical from `parse_args`):
 | `--input`, `-i` | none (auto picker when omitted) | Accepts one or more Craig export folders and/or direct audio paths. | Use when you want deterministic, scriptable input paths instead of GUI selection. |
 | `--pick-folder` | `False` | Forces GUI folder picker flow (or picker is used automatically when `--input` is omitted). | Use for interactive runs when you prefer to browse instead of typing a path. |
 | `--output-root` | `_local/runs` | Changes where run folders are created. | Use when you want transcripts/logs written outside the default `_local/runs` tree. |
-| `--label` | none | Overrides run folder naming with a custom label prefix/safe name. | Use for stable run IDs (for example session names or ticket IDs). |
+| `--label` | none | Overrides run folder naming with a custom label prefix/safe name. | Use to set a human-readable run label (for example session names or ticket IDs); the final `run_id` will still include an automatic timestamp suffix, so it is identifiable but not fully deterministic. |
 | `--name-map-mode` | `replace` | Controls speaker alias replacement mode: `replace` or `none`. | Use `none` while debugging raw names, or `replace` for normal cleaned names. |
 | `--chunk-sec` | `120` | Sets chunk duration (seconds) for audio splitting before transcription. | Use smaller chunks for responsiveness, or larger chunks to reduce chunk count. |
 | `--overlap-sec` | `5.0` | Sets overlap (seconds) between adjacent chunks. | Increase slightly to reduce boundary clipping; decrease to reduce duplicate overlap text. |

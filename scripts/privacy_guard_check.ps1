@@ -9,7 +9,7 @@ $violations = New-Object System.Collections.Generic.List[string]
 foreach ($path in $tracked) {
     $lower = $path.ToLowerInvariant()
 
-    if ($lower -match '(^|/)\.env($|\..+)' -and $lower -notmatch '(^|/)\.env\.example$') {
+    if ($lower -match '(^|/)\.env[^/]*$' -and $lower -notmatch '(^|/)\.env\.example$') {
         [void]$violations.Add("$path [secret env file variant]")
         continue
     }

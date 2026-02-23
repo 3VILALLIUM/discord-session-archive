@@ -102,7 +102,7 @@ Bootstrap done state:
 
 Install:
 
-- Python 3.10+
+- Python 3.11+
 - ffmpeg (on `PATH`)
 - Git
 

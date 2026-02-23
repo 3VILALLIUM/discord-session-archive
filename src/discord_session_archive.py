@@ -232,6 +232,24 @@ def is_link_or_reparse_point(path: Path) -> bool:
     return bool(getattr(stat_result, "st_file_attributes", 0) & WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT)
 
 
+def find_link_or_reparse_descendant(root: Path) -> Optional[Path]:
+    for current_root, dirs, files in os.walk(root, topdown=True, followlinks=False):
+        current_path = Path(current_root)
+        kept_dirs: List[str] = []
+        for dirname in sorted(dirs):
+            child_dir = current_path / dirname
+            if is_link_or_reparse_point(child_dir):
+                return child_dir
+            kept_dirs.append(dirname)
+        dirs[:] = kept_dirs
+
+        for filename in sorted(files):
+            child_file = current_path / filename
+            if is_link_or_reparse_point(child_file):
+                return child_file
+    return None
+
+
 def ensure_safe_force_delete_target(run_dir: Path, output_root: Path) -> None:
     if not run_dir.exists():
         return
@@ -249,6 +267,12 @@ def ensure_safe_force_delete_target(run_dir: Path, output_root: Path) -> None:
 
     if resolved_run_dir == resolved_root:
         raise ValueError(f"refusing --force delete of output root: {path_for_display(resolved_root)}")
+
+    linked_descendant = find_link_or_reparse_descendant(run_dir)
+    if linked_descendant is not None:
+        raise ValueError(
+            f"refusing --force delete with linked content: {path_for_display(linked_descendant)}"
+        )
 
 
 def strip_discord_snowflake_tokens(text: str) -> str:

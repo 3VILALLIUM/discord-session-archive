@@ -1509,6 +1509,16 @@ class TestForceDeleteSafety:
         with pytest.raises(ValueError):
             mod.ensure_safe_force_delete_target(run_dir, output_root)
 
+    def test_force_delete_rejects_linked_descendant(self, tmp_path: Path, monkeypatch):
+        output_root = tmp_path / "runs"
+        run_dir = output_root / "demo"
+        linked_child = run_dir / "linked-child"
+        linked_child.mkdir(parents=True)
+
+        monkeypatch.setattr(mod, "is_link_or_reparse_point", lambda path: path == linked_child)
+        with pytest.raises(ValueError):
+            mod.ensure_safe_force_delete_target(run_dir, output_root)
+
 
 class TestVersionConstant:
     def test_version_is_semver(self):

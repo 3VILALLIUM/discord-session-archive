@@ -419,6 +419,15 @@ else
   exit 1
 fi
 
+detected_python="$("$py" -c "import sys; print('.'.join(map(str, sys.version_info[:3])))")"
+if ! "$py" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"; then
+  echo "ERROR: Python 3.11+ is required for requirements.lock.txt installs; found $detected_python." >&2
+  exit 1
+fi
+
+echo "== Python requirement =="
+echo "   Detected Python $detected_python (meets >= 3.11)"
+
 run_step "Upgrade pip" "$py" -m pip install --upgrade pip
 run_step "Install requirements" "$py" -m pip install --require-hashes -r requirements.lock.txt
 run_step "Set git hooks path" git config core.hooksPath .githooks

@@ -414,6 +414,17 @@ if (-not (Test-Path ".venv\Scripts\python.exe") -and -not (Test-Path ".venv/bin/
 }
 
 $py = Get-VenvPythonPath
+$detectedPython = & $py -c "import sys; print('.'.join(str(part) for part in sys.version_info[:3]))"
+if (-not $?) {
+    throw "Failed to detect Python version from virtual environment."
+}
+& $py -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
+if (-not $?) {
+    throw "Python 3.11+ is required for requirements.lock.txt installs; found $detectedPython."
+}
+Write-Host "== Python requirement =="
+Write-Host "   Detected Python $detectedPython (meets >= 3.11)"
+
 Invoke-NativeStep -Title "Upgrade pip" -Command @($py, "-m", "pip", "install", "--upgrade", "pip")
 Invoke-NativeStep -Title "Install requirements" -Command @($py, "-m", "pip", "install", "--require-hashes", "-r", "requirements.lock.txt")
 Invoke-NativeStep -Title "Set git hooks path" -Command @("git", "config", "core.hooksPath", ".githooks")

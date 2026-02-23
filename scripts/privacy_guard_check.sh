@@ -10,7 +10,7 @@ violations=()
 for path in "${tracked[@]}"; do
   lower="${path,,}"
 
-  if [[ "$lower" =~ (^|/)\.env($|\..+) ]] && [[ ! "$lower" =~ (^|/)\.env\.example$ ]]; then
+  if [[ "$lower" =~ (^|/)\.env[^/]*$ ]] && [[ ! "$lower" =~ (^|/)\.env\.example$ ]]; then
     violations+=("$path [secret env file variant]")
     continue
   fi

@@ -43,11 +43,11 @@ $secretPatterns = @(
 )
 
 foreach ($pattern in $secretPatterns) {
-    $matches = @(& git grep -nI -E -- $pattern)
+    $grepHits = @(& git grep -nI -E -- $pattern)
     $exitCode = $LASTEXITCODE
 
     if ($exitCode -eq 0) {
-        foreach ($hit in $matches) {
+        foreach ($hit in $grepHits) {
             [void]$violations.Add("$hit [possible secret content]")
         }
         continue

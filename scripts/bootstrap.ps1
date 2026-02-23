@@ -34,11 +34,11 @@ function Invoke-NativeStep {
     Write-Host ("   " + (Format-Command -Command $Command))
     $global:LASTEXITCODE = 0
     $exe = $Command[0]
-    $args = @()
+    $cmdArgs = @()
     if ($Command.Length -gt 1) {
-        $args = $Command[1..($Command.Length - 1)]
+        $cmdArgs = $Command[1..($Command.Length - 1)]
     }
-    & $exe @args
+    & $exe @cmdArgs
     if (-not $?) {
         throw "$Title failed."
     }

@@ -47,6 +47,7 @@ git status --short
 git ls-files
 .\scripts\privacy_guard_check.ps1
 .\scripts\preflight.ps1
+# Requires ripgrep (rg). Alternatively: grep -rn -i -E "OPENAI_API_KEY|_local|transcript|craig|whisper" README.md docs scripts .githooks .github src tests
 rg -n -i "OPENAI_API_KEY|_local|transcript|craig|whisper" README.md docs scripts .githooks .github src tests
 ```
 

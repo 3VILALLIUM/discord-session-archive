@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
     def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:  # type: ignore[misc]  # noqa: D103  # pyright: ignore
         return False
 
-AudioSegment = None  # lazy import
+AudioSegment: Any = None  # lazy import; set by ensure_pydub_loaded()
 
 
 def ensure_pydub_loaded() -> None:
@@ -1403,8 +1403,9 @@ def transcribe_track(
 
     with tempfile.TemporaryDirectory(prefix="discord_session_archive_chunks_") as tmp:
         temp_dir = Path(tmp)
+        _audio_ref = audio  # local alias so lambda is not invalidated by del
         specs = run_with_transient_file_retry(
-            lambda: export_chunks(audio, bounds, temp_dir, audio_path.stem),
+            lambda: export_chunks(_audio_ref, bounds, temp_dir, audio_path.stem),
             logger=logger,
             operation=f"Exporting chunks for {audio_path.name}",
         )

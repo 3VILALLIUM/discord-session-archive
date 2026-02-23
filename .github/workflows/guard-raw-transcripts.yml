@@ -28,6 +28,11 @@ jobs:
           git fetch --no-tags origin "${GH_SHA}"
           git checkout --detach FETCH_HEAD
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Run privacy guard
         shell: bash
         run: bash scripts/privacy_guard_check.sh
@@ -35,17 +40,17 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
       - name: Dependency health check
         shell: bash
-        run: python3 -m pip check
+        run: python -m pip check
 
       - name: Compile smoke check
         shell: bash
-        run: python3 -m compileall src tests
+        run: python -m compileall src tests
 
       - name: Run tests
         shell: bash
-        run: python3 -m pytest -q
+        run: python -m pytest -q

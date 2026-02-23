@@ -56,8 +56,6 @@ _local/runs/<run_id>/<run_id>_transcript.md
 _local/runs/<run_id>/<run_id>_log.md
 ```
 
-No JSON, NotebookLM, or raw transcript file is generated.
-
 ## Replacement Map Contract
 
 Runtime supports one map file:

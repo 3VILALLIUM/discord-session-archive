@@ -28,15 +28,15 @@ Do not commit:
 - Logs (`.log`).
 - Secrets (`.env`, `*.key`, `*.pem`).
 - Local identity mapping files (for example `_local/config/name_replace_map.json`).
-- Generated transcript files outside docs/code paths.
+- Generated run artifacts (`<run_id>_transcript.md`, `<run_id>_log.md`) anywhere outside `_local/`.
 
 ## Guardrails
 
-- `.gitignore` blocks local outputs and sensitive file classes.
+- `.gitignore` blocks `_local/`, `.env`, and sensitive file classes/extensions.
 - `.githooks/pre-commit` runs privacy checks before commit.
 - `.githooks/pre-push` runs privacy checks and tests before push, and blocks direct pushes to `origin/main`.
-- `scripts/privacy_guard_check.ps1` / `scripts/privacy_guard_check.sh` scan tracked files.
-- `.github/workflows/guard-raw-transcripts.yml` enforces the same rules in CI.
+- `scripts/privacy_guard_check.ps1` / `scripts/privacy_guard_check.sh` block tracked `.env`, `_local/**`, forbidden extensions, exact generated filenames (`transcript.md`, `transcript.cleaned.md`, `transcript.json`, `notebooklm.md`), and run-style generated markdown names (`*_transcript.md`, `*_log.md`).
+- `.github/workflows/guard-raw-transcripts.yml` enforces the same script checks in CI.
 
 ## Audit Commands
 
@@ -49,6 +49,8 @@ git ls-files
 .\scripts\preflight.ps1
 # Requires ripgrep (rg). Alternatively: grep -rn -i -E "OPENAI_API_KEY|_local|transcript|craig|whisper" README.md docs scripts .githooks .github src tests
 rg -n -i "OPENAI_API_KEY|_local|transcript|craig|whisper" README.md docs scripts .githooks .github src tests
+# Optional targeted check for generated run markdown artifact names
+git ls-files | rg -n "_(transcript|log)\.md$"
 ```
 
 ## API Key Handling

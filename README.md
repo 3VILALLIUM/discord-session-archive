@@ -24,7 +24,8 @@ All setup instructions are canonical in `docs/SETUP.md`, including:
 - first-run command and verification checklist
 
 Use canonical runtime docs to avoid drift:
-- `docs/SETUP.md` for setup, CLI flags/defaults, output contract, and naming rules.
+- `docs/SETUP.md` for setup and CLI flags/defaults.
+- `docs/ARCHITECTURE.md` for pipeline behavior, output contract, and run ID naming rules.
 - `docs/TROUBLESHOOTING.md` for symptom-to-fix guidance.
 
 Maintenance note:

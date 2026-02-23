@@ -208,6 +208,76 @@ Fix:
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
 ```
 
+## Flag quick-reference by symptom
+
+Use these symptom-to-flag mappings as a fast path before deep debugging.
+
+### Wrong folder or picker behavior (`--input`, `--pick-folder`)
+
+```powershell
+# Deterministic path input (no picker)
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
+
+# Explicit picker flow
+python .\src\discord_session_archive.py --pick-folder
+```
+
+### Output written to an unexpected location (`--output-root`, `--label`)
+
+```powershell
+# Pin a custom output root
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --output-root "D:\session-archive\runs"
+
+# Force a predictable run folder label under the selected root
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --output-root "D:\session-archive\runs" --label "campaign-12-session-03"
+```
+
+### Run folder already exists (`--force`, `--label`)
+
+```powershell
+# Create a new run folder by changing label
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --label "session-2026-02-23-rerun"
+
+# Or intentionally overwrite existing computed run folder
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --force
+```
+
+### Noisy transcript or language drift (`--language`, `--quality-filter`)
+
+```powershell
+# Force known language and stronger filtering
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language en --quality-filter strict
+
+# Keep language auto but disable filtering for raw debugging comparison
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language auto --quality-filter off
+```
+
+### Slow runs or API pressure (`--track-workers`, `--api-workers`, `--max-workers`, `--chunk-sec`, `--overlap-sec`)
+
+```powershell
+# Lower concurrency to reduce machine/API pressure
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --track-workers 2 --api-workers 2 --max-workers 2
+
+# Tune chunk geometry when boundary duplication or throughput needs adjustment
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --chunk-sec 90 --overlap-sec 1.5
+```
+
+### Debug run without file writes (`--dry-run`, `--quiet`)
+
+```powershell
+# Preview planned run behavior without writing transcript/log files
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run
+
+# Combine dry-run with low-noise console mode
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run --quiet
+```
+
+### Verify CLI build/version (`--version`)
+
+```powershell
+python .\src\discord_session_archive.py --version
+```
+
 ## Naming and Metadata
 
 ### Run name does not use guild/timestamp

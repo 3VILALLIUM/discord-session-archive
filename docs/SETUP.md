@@ -183,23 +183,47 @@ Manual path mode (optional customization):
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport"
 ```
 
-Useful runtime flags:
+Runtime flags (canonical from `parse_args`):
 
-- `--input <path>` bypass picker and use explicit path(s)
-- `--pick-folder` explicitly force picker mode
-- `--language auto|<code>` default `auto`
-- `--quality-filter balanced|strict|off` default `balanced`
-- `--track-workers 4` track-level parallelism
-- `--api-workers 4` global paid API concurrency cap
-- `--max-workers <n>` per-track chunk worker pool
-- `--chunk-sec <n>` chunk duration in seconds
-- `--overlap-sec <n>` chunk overlap in seconds
-- `--output-root <path>` write run folders to a custom root
-- `--label <text>` set explicit run folder label
-- `--name-map-mode none` disables replacement map
-- `--force` overwrite existing run directory
-- `--dry-run` preview planned work without writing files
-- `--quiet` suppress console logs
+| Flag | Default | What it changes | When to use |
+| --- | --- | --- | --- |
+| `--input`, `-i` | none (auto picker when omitted) | Accepts one or more Craig export folders and/or direct audio paths. | Use when you want deterministic, scriptable input paths instead of GUI selection. |
+| `--pick-folder` | `False` | Forces GUI folder picker flow (or picker is used automatically when `--input` is omitted). | Use for interactive runs when you prefer to browse instead of typing a path. |
+| `--output-root` | `_local/runs` | Changes where run folders are created. | Use when you want transcripts/logs written outside the default `_local/runs` tree. |
+| `--label` | none | Overrides run folder naming with a custom label prefix/safe name. | Use for stable run IDs (for example session names or ticket IDs). |
+| `--name-map-mode` | `replace` | Controls speaker alias replacement mode: `replace` or `none`. | Use `none` while debugging raw names, or `replace` for normal cleaned names. |
+| `--chunk-sec` | `120` | Sets chunk duration (seconds) for audio splitting before transcription. | Use smaller chunks for responsiveness, or larger chunks to reduce chunk count. |
+| `--overlap-sec` | `5.0` | Sets overlap (seconds) between adjacent chunks. | Increase slightly to reduce boundary clipping; decrease to reduce duplicate overlap text. |
+| `--max-workers` | `min(4, CPU count)` | Per-track chunk worker count (local parallel chunk processing). | Tune when CPU/disk pressure is high or when local chunk prep feels slow. |
+| `--track-workers` | `4` | Number of tracks processed in parallel. | Reduce on low-resource machines; raise carefully for faster multi-track runs. |
+| `--api-workers` | `4` | Global cap for concurrent paid API transcription calls. | Lower if you hit rate limits; raise cautiously if API capacity allows. |
+| `--language` | `auto` | Sets language hint (`auto` or explicit ISO code like `en`). | Force a language when auto-detection drifts or mixed-language noise appears. |
+| `--quality-filter` | `balanced` | Sets transcript cleanup profile: `balanced`, `strict`, or `off`. | Use `strict` for more aggressive cleanup, `off` for rawer debugging output. |
+| `--force` | `False` | Allows overwrite of an existing computed run directory. | Use when rerunning the same input/run ID intentionally. |
+| `--dry-run` | `False` | Simulates run planning without writing transcript/log files. | Use to verify inputs/naming/options before committing to file writes/API usage strategy. |
+| `--quiet` | `False` | Suppresses console logs. | Use in wrapper scripts or CI logs where minimal console output is preferred. |
+| `--version` | `False` | Prints CLI version and exits immediately. | Use to verify installed script version in your environment. |
+
+Compatibility note: removed legacy flags (`--clean`, `--json`, `--notebooklm`) are still parsed only to emit a clear error and should not be used.
+
+PowerShell examples for less-obvious options:
+
+```powershell
+# Write run artifacts to a custom root
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --output-root "D:\session-archive\runs"
+
+# Force a specific run label (useful for stable naming)
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --label "campaign-12-session-03"
+
+# Preview behavior without writing files
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run
+
+# Smaller chunks for troubleshooting chunk-boundary behavior
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --chunk-sec 90
+
+# Lower overlap to reduce repeated boundary text
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --overlap-sec 1.5
+```
 
 Example (faster + force English):
 

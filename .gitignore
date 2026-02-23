@@ -22,7 +22,7 @@ __pycache__/
 *.py[cod]
 
 # Secrets
-.env
+.env*
 !.env.example
 *.key
 *.pem

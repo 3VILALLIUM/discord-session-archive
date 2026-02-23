@@ -10,8 +10,8 @@ violations=()
 for path in "${tracked[@]}"; do
   lower="${path,,}"
 
-  if [[ "$path" == ".env" ]]; then
-    violations+=("$path [secret env file]")
+  if [[ "$lower" =~ (^|/)\.env($|\..+) ]] && [[ ! "$lower" =~ (^|/)\.env\.example$ ]]; then
+    violations+=("$path [secret env file variant]")
     continue
   fi
 
@@ -34,9 +34,38 @@ for path in "${tracked[@]}"; do
   fi
 done
 
+secret_patterns=(
+  'sk-[A-Za-z0-9]{20,}'
+  'gh[pousr]_[A-Za-z0-9]{20,}'
+  'AKIA[0-9A-Z]{16}'
+  'ASIA[0-9A-Z]{16}'
+  'xox[baprs]-[A-Za-z0-9-]{10,}'
+  '-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----'
+)
+
+for pattern in "${secret_patterns[@]}"; do
+  set +e
+  grep_output="$(git grep -nI -E -- "$pattern")"
+  status=$?
+  set -e
+
+  if (( status == 0 )); then
+    while IFS= read -r hit; do
+      [[ -n "$hit" ]] || continue
+      violations+=("$hit [possible secret content]")
+    done <<< "$grep_output"
+    continue
+  fi
+
+  if (( status != 1 )); then
+    echo "ERROR: git grep failed for pattern '$pattern' with exit code $status." >&2
+    exit "$status"
+  fi
+done
+
 if (( ${#violations[@]} > 0 )); then
   echo "ERROR: privacy guard blocked due to forbidden tracked files:"
-  printf ' - %s\n' "${violations[@]}"
+  printf '%s\n' "${violations[@]}" | sort -u | sed 's/^/ - /'
   exit 1
 fi
 

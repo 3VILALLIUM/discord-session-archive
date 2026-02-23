@@ -2,6 +2,12 @@
 
 Back to docs index: `docs/README.md`
 
+Maintenance note:
+
+- This document owns symptom-to-fix recipes.
+- Canonical CLI flag definitions/defaults live in `docs/SETUP.md` under `Runtime flags (canonical from parse_args)`.
+- When CLI behavior changes, update `docs/SETUP.md` first, then update this file for symptom guidance.
+
 ## Setup Failures
 
 ### Bootstrap exits with code `2`
@@ -61,6 +67,8 @@ Fix:
 3. Restart terminal.
 
 ## Runtime Failures
+
+For canonical flag defaults and definitions, see `docs/SETUP.md` under `Runtime flags (canonical from parse_args)`.
 
 ### Input path/picker confusion (`--input`, `--pick-folder`)
 
@@ -134,7 +142,7 @@ Cause:
 
 Fix:
 
-- Use `--name-map-mode replace` (default) for alias replacement.
+- Use `--name-map-mode replace` for alias replacement.
 - Use `--name-map-mode none` to disable replacements.
 - Edit `_local/config/name_replace_map.json` when using `replace`.
 
@@ -318,28 +326,6 @@ Behavior:
 
 ## Transcript Quality
 
-### Random language drift / gibberish
-
-Fix options:
-
-1. Force language:
-
-```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language en
-```
-
-2. Increase filtering:
-
-```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter strict
-```
-
-3. Disable filtering for debugging:
-
-```powershell
-python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter off
-```
-
 ### Quality/language tuning (`--quality-filter`, `--language`)
 
 Cause:
@@ -349,7 +335,7 @@ Cause:
 
 Fix:
 
-1. Keep auto language and use balanced filtering (default):
+1. Keep auto language and use balanced filtering:
 
 ```powershell
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --language auto --quality-filter balanced
@@ -366,6 +352,8 @@ python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --langu
 ```powershell
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --quality-filter off
 ```
+
+For current defaults, refer to `docs/SETUP.md` under `Runtime flags (canonical from parse_args)`.
 
 ### Run is too slow (worker/chunk tuning)
 

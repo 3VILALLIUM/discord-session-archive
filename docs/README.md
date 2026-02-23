@@ -27,6 +27,18 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 - `docs/TROUBLESHOOTING.md`: common failures and fixes.
 - `docs/POLICY.md`: no-community-input and support policy.
 
+## Doc ownership
+
+- `docs/SETUP.md` owns CLI flag definitions and defaults.
+- `docs/TROUBLESHOOTING.md` owns symptom-to-fix recipes.
+- `README.md` keeps only high-level summary and links.
+
+Maintenance note:
+
+- When CLI behavior changes, update `docs/SETUP.md` first.
+- Then update `docs/TROUBLESHOOTING.md` for affected symptoms.
+- Keep `README.md` limited to pointers into canonical docs.
+
 ## Transcript Quality Note
 
 `whisper-1` frequently misidentifies background noise as words and will try to transcribe them.

@@ -33,6 +33,8 @@ Invoke-NativeStep "git status --short" { git status --short }
 
 Invoke-NativeStep "git ls-files" { git ls-files }
 
+Invoke-NativeStep "docs_consistency_check.ps1" { & (Join-Path $PSScriptRoot "docs_consistency_check.ps1") -ValidateTroubleshooting }
+
 Invoke-NativeStep "privacy_guard_check.ps1" { & (Join-Path $PSScriptRoot "privacy_guard_check.ps1") }
 
 $bashCmd = Get-Command bash -ErrorAction SilentlyContinue

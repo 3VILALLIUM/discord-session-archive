@@ -2,6 +2,11 @@
 
 Back to docs index: `docs/README.md`
 
+Maintenance note:
+
+- This document owns pipeline behavior and run artifact contract.
+- Canonical CLI flag definitions/defaults live in `docs/SETUP.md`.
+
 ## Pipeline Overview
 
 `discord-session-archive` uses one primary pipeline script:
@@ -10,7 +15,7 @@ Back to docs index: `docs/README.md`
 
 Flow:
 
-1. Select input folder from picker by default (or use `--input` to provide paths manually), then discover audio files.
+1. Select input folder (or use `--input` to provide paths manually), then discover audio files.
 2. Parse Craig `info.txt` (if available) for metadata, run naming, and Craig notes.
 3. Split each track into overlapping chunks.
 4. Transcribe chunks with OpenAI `whisper-1`.
@@ -59,9 +64,9 @@ Runtime supports one map file:
 
 - `_local/config/name_replace_map.json`
 
-`--name-map-mode` supports only:
+`--name-map-mode` supports:
 
-- `replace` (default)
+- `replace`
 - `none`
 
 ## Testing Surface

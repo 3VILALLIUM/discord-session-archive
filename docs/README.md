@@ -46,3 +46,25 @@ Maintenance note:
 This project corrects for that with post-processing heuristics that suppress repeated low-information artifacts (for example repetitive `you`, `okay`, or `thank you` bursts), remove overlap duplicates, and keep higher-signal lines.
 Accuracy still depends on source audio quality: mumbling, low speaking volume, cross-talk, clipped audio, and poor microphones can all reduce results.
 For tabletop sessions, number-only lines can be real speech (for example dice rolls and totals), so filtering is intentionally conservative and may keep some numeric artifacts.
+
+## Cost Quick Estimate
+
+Start with a small prepaid budget while validating your setup.
+
+| Item | Estimate |
+| --- | --- |
+| Whisper-1 list rate (as of February 23, 2026) | $0.006/min |
+| Billed audio for a 1-hour track with defaults (`120s` chunk, `5s` overlap) | `~62.58` minutes |
+| Cost per 1-hour track | `~$0.38` |
+
+Quick multiplier: total cost is approximately `0.38 x number_of_1_hour_tracks`.
+
+Examples:
+
+| 1-hour tracks | Estimated total |
+| --- | --- |
+| `1` | `~$0.38` |
+| `3` | `~$1.13` |
+| `6` | `~$2.25` |
+
+Reference: https://developers.openai.com/api/docs/models/whisper-1

@@ -7,10 +7,34 @@ cd "$repo_root"
 violations=()
 
 to_lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+  local value="$1"
+
+  if (( BASH_VERSINFO[0] >= 4 )); then
+    printf '%s' "${value,,}"
+    return
+  fi
+
+  printf '%s' "$value" | tr '[:upper:]' '[:lower:]'
+}
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "ERROR: git is required for privacy_guard_check.sh." >&2
+  exit 1
+fi
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "ERROR: privacy_guard_check.sh must run inside a git work tree." >&2
+  exit 1
+fi
+
+tracked_paths="$(git ls-files)" || {
+  status=$?
+  echo "ERROR: git ls-files failed with exit code $status." >&2
+  exit "$status"
 }
 
 while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
   lower="$(to_lower "$path")"
 
   if [[ "$lower" =~ (^|/)\.env[^/]*$ ]] && [[ ! "$lower" =~ (^|/)\.env\.example$ ]]; then
@@ -35,7 +59,7 @@ while IFS= read -r path; do
     violations+=("$path [generated transcript artifact]")
     continue
   fi
-done < <(git ls-files)
+done <<< "$tracked_paths"
 
 secret_patterns=(
   'sk-[A-Za-z0-9]{20,}'

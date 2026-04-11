@@ -4,11 +4,38 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-mapfile -t tracked < <(git ls-files)
 violations=()
 
-for path in "${tracked[@]}"; do
-  lower="${path,,}"
+to_lower() {
+  local value="$1"
+
+  if (( BASH_VERSINFO[0] >= 4 )); then
+    printf '%s' "${value,,}"
+    return
+  fi
+
+  printf '%s' "$value" | tr '[:upper:]' '[:lower:]'
+}
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "ERROR: git is required for privacy_guard_check.sh." >&2
+  exit 1
+fi
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "ERROR: privacy_guard_check.sh must run inside a git work tree." >&2
+  exit 1
+fi
+
+tracked_paths="$(git ls-files)" || {
+  status=$?
+  echo "ERROR: git ls-files failed with exit code $status." >&2
+  exit "$status"
+}
+
+while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
+  lower="$(to_lower "$path")"
 
   if [[ "$lower" =~ (^|/)\.env[^/]*$ ]] && [[ ! "$lower" =~ (^|/)\.env\.example$ ]]; then
     violations+=("$path [secret env file variant]")
@@ -32,7 +59,7 @@ for path in "${tracked[@]}"; do
     violations+=("$path [generated transcript artifact]")
     continue
   fi
-done
+done <<< "$tracked_paths"
 
 secret_patterns=(
   'sk-[A-Za-z0-9]{20,}'

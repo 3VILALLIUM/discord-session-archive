@@ -60,6 +60,10 @@ format_cmd() {
   echo "$out"
 }
 
+to_lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 run_step() {
   local title="$1"
   shift
@@ -71,7 +75,7 @@ run_step() {
 os_family() {
   local uname_s
   uname_s="$(uname -s 2>/dev/null || echo unknown)"
-  case "${uname_s,,}" in
+  case "$(to_lower "$uname_s")" in
     linux*) echo "linux" ;;
     darwin*) echo "macos" ;;
     msys*|mingw*|cygwin*) echo "windows" ;;
@@ -363,7 +367,7 @@ if [[ ${#MISSING[@]} -gt 0 ]]; then
 
   if [[ "$ASSUME_YES" != true ]]; then
     read -r -p "Install missing dependencies now? [y/N] " answer
-    case "${answer,,}" in
+    case "$(to_lower "$answer")" in
       y|yes)
         ;;
       *)

@@ -39,6 +39,12 @@ Local-only artifacts must never be committed, including:
 4. Keep docs and commands PowerShell-first.
 5. Keep naming/source references aligned to `discord-session-archive`.
 
+## PR Review Gate
+
+- Do not close or merge pull requests until GitHub Copilot code review has had a chance to appear and has been checked, unless the user explicitly instructs otherwise.
+- If Copilot review is not yet visible, HOLD rather than closing or merging.
+- GitHub may auto-close superseded PRs independently, but agents must not proactively close superseded PRs before Copilot review has had a chance to finish and be checked.
+
 ## Pre-Commit Safety Checks
 
 Run these before preparing changes:

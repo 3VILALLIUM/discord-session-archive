@@ -4,11 +4,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-mapfile -t tracked < <(git ls-files)
 violations=()
 
-for path in "${tracked[@]}"; do
-  lower="${path,,}"
+to_lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+while IFS= read -r path; do
+  lower="$(to_lower "$path")"
 
   if [[ "$lower" =~ (^|/)\.env[^/]*$ ]] && [[ ! "$lower" =~ (^|/)\.env\.example$ ]]; then
     violations+=("$path [secret env file variant]")
@@ -32,7 +35,7 @@ for path in "${tracked[@]}"; do
     violations+=("$path [generated transcript artifact]")
     continue
   fi
-done
+done < <(git ls-files)
 
 secret_patterns=(
   'sk-[A-Za-z0-9]{20,}'

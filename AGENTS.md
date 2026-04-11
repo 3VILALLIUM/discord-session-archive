@@ -42,7 +42,7 @@ Local-only artifacts must never be committed, including:
 ## PR Review Gate
 
 - Do not close or merge pull requests until GitHub Copilot code review has had a chance to appear and has been checked, unless the user explicitly instructs otherwise.
-- If Copilot review is not yet visible, HOLD rather than closing or merging.
+- If Copilot review is not yet visible, do not close or merge the pull request; wait for the review to appear and ask the user to proceed once it is visible.
 - GitHub may auto-close superseded PRs independently, but agents must not proactively close superseded PRs before Copilot review has had a chance to finish and be checked.
 
 ## Pre-Commit Safety Checks
@@ -59,7 +59,7 @@ python -m pytest -q
 ## Project Policy
 
 Repository is provided as-is.
-No issues, PRs, discussions, or suggestions are accepted.
+No external issues, PRs, discussions, or suggestions are accepted.
 
 ## Docs and Entry Points
 

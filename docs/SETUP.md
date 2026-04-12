@@ -254,6 +254,18 @@ _local/runs/<run_id>/<run_id>_log.md
 ```
 
 Only transcript and run-log markdown artifacts are generated for each run.
+These runtime artifacts are local by design and are not meant to be committed.
+Git guardrails reduce accidental tracking risk, but they do not sanitize transcript or log contents.
+Treat both files as local-sensitive outputs before manually sharing them.
+
+Transcript frontmatter may include Craig-derived metadata such as:
+- `guild`
+- `channel`
+- `requester`
+- `tracks`
+- `craig_notes`
+- `source_info_file` basename
+- `start_time`
 
 Run ID precedence:
 
@@ -261,10 +273,14 @@ Run ID precedence:
 2. Craig `info.txt` (`<Guild_Name>_<StartTimeISOWithColonsReplacedByDash>`)
 3. UTC timestamp fallback
 
+When `--label` is omitted, `run_id` may derive from Craig metadata.
+
 Discord-style long numeric guild IDs found in `Guild` are stripped from filename naming.
 
 If `info.txt` contains Craig notes (including timestamped note lines), they are included in transcript frontmatter under `craig_notes`.
 Do not put personal or sensitive information in Craig notes unless you want it to appear in the transcript output.
+
+The run log may contain local filesystem paths used for troubleshooting.
 
 ## Done State Checklist
 

@@ -54,7 +54,7 @@ Guardrails are enforced by:
 - `scripts/privacy_guard_check.sh`
 - `.github/workflows/guard-raw-transcripts.yml`
 
-Details are in `docs/PRIVACY.md`.
+These guardrails reduce accidental git tracking risk, but local transcript and run log artifacts can still contain sensitive session metadata and local context if you manually share them. Details are in `docs/PRIVACY.md`.
 
 ## Documentation
 

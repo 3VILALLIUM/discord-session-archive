@@ -56,6 +56,11 @@ _local/runs/<run_id>/<run_id>_transcript.md
 _local/runs/<run_id>/<run_id>_log.md
 ```
 
+These outputs are local by design.
+Depending on available Craig metadata, transcript frontmatter may include `guild`, `channel`, `requester`, `tracks`, `craig_notes`, `source_info_file` basename, and `start_time`.
+When `--label` is omitted, `run_id` may derive from Craig metadata, and the run log may contain local filesystem paths used for troubleshooting.
+Git guardrails reduce commit risk for these files, but they do not sanitize artifact contents.
+
 ## Replacement Map Contract
 
 Runtime supports one map file:

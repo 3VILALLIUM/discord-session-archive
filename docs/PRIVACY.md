@@ -38,6 +38,26 @@ Do not commit:
 - `scripts/privacy_guard_check.ps1` / `scripts/privacy_guard_check.sh` block tracked `.env`, `_local/**`, forbidden extensions, exact generated filenames (`transcript.md`, `transcript.cleaned.md`, `transcript.json`, `notebooklm.md`), and run-style generated markdown names (`*_transcript.md`, `*_log.md`).
 - `.github/workflows/guard-raw-transcripts.yml` enforces the same script checks in CI.
 
+## Artifact Disclosure Surface
+
+Runtime transcript and log artifacts are local by design and are not meant to be committed.
+The git guardrails above reduce the risk of tracking these files, but they do not sanitize artifact contents.
+
+Generated transcript artifacts may still disclose Craig-derived session metadata, including:
+- `guild`
+- `channel`
+- `requester`
+- `tracks`
+- `craig_notes`
+- `source_info_file` basename
+- `start_time`
+
+When `--label` is not provided, `run_id` may derive from Craig metadata.
+Run logs may also contain local filesystem paths used for troubleshooting.
+
+Treat generated transcript and log files as local-sensitive outputs.
+Do not assume they are safe to share manually just because git guardrails are working correctly.
+
 ## Audit Commands
 
 Run from repo root:

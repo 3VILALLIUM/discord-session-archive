@@ -29,5 +29,6 @@ __pycache__/
 
 # Editor and OS
 .vscode/
+.codex
 .DS_Store
 Thumbs.db

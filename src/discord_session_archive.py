@@ -424,6 +424,18 @@ def apply_name_map_to_metadata(meta: CraigInfoMetadata, name_map: Dict[str, str]
     )
 
 
+def apply_name_map_to_segments(segments: List[Dict[str, Any]], name_map: Dict[str, str]) -> List[Dict[str, Any]]:
+    if not name_map:
+        return segments
+
+    mapped_segments: List[Dict[str, Any]] = []
+    for segment in segments:
+        updated = dict(segment)
+        updated["text"] = apply_name_map_to_text(str(segment.get("text", "")), name_map)
+        mapped_segments.append(updated)
+    return mapped_segments
+
+
 def clean_text(text: str) -> str:
     stripped = re.sub(r"\s+", " ", text).strip()
     stripped = stripped.replace("`", "'")
@@ -1871,6 +1883,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     all_segments.sort(key=lambda row: (row["start"], row["end"], row["speaker"]))
 
     filtered_segments = apply_quality_filter(all_segments, mode=args.quality_filter)
+    render_segments = apply_name_map_to_segments(filtered_segments, name_map)
     runtime = time.time() - start
 
     if args.dry_run:
@@ -1886,7 +1899,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     transcript_md = render_transcript_markdown(
         run_id=run_id,
-        segments=filtered_segments,
+        segments=render_segments,
         metadata=mapped_metadata,
         track_count=len(tracks),
         quality_filter=args.quality_filter,

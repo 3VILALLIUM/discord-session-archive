@@ -44,7 +44,7 @@ jobs:
       - name: Run git identity guard
         shell: bash
         env:
-          ALLOW_GITHUB_ACTIONS_COMMITTER: "1"
+          ALLOW_GITHUB_ACTIONS_COMMITTER: ${{ github.event_name == 'push' && '1' || '0' }}
           GH_EVENT_NAME: ${{ github.event_name }}
           GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

@@ -50,6 +50,8 @@ Guardrails are enforced by:
 - `.gitignore`
 - `.githooks/pre-commit`
 - `.githooks/pre-push`
+- `scripts/git_identity_guard.ps1`
+- `scripts/git_identity_guard.sh`
 - `scripts/privacy_guard_check.ps1`
 - `scripts/privacy_guard_check.sh`
 - `.github/workflows/guard-raw-transcripts.yml`

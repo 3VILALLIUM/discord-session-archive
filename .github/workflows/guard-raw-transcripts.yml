@@ -55,7 +55,7 @@ jobs:
           elif [[ -n "${GH_BEFORE}" && "${GH_BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
             bash scripts/git_identity_guard.sh range "${GH_BEFORE}..${GH_SHA}"
           else
-            bash scripts/git_identity_guard.sh range "${GH_SHA}"
+            bash scripts/git_identity_guard.sh commits "${GH_SHA}"
           fi
 
       - name: Run privacy guard

@@ -59,13 +59,15 @@ check_repo_config() {
 
 check_commit_identities() {
   local rev author_name author_email committer_name committer_email
+  local -a identity_fields
 
   for rev in "$@"; do
     [[ -z "$rev" ]] && continue
-    author_name="$(git show -s --format=%an "$rev")"
-    author_email="$(git show -s --format=%ae "$rev")"
-    committer_name="$(git show -s --format=%cn "$rev")"
-    committer_email="$(git show -s --format=%ce "$rev")"
+    mapfile -t identity_fields < <(git show -s --format='%an%n%ae%n%cn%n%ce' "$rev")
+    author_name="${identity_fields[0]:-}"
+    author_email="${identity_fields[1]:-}"
+    committer_name="${identity_fields[2]:-}"
+    committer_email="${identity_fields[3]:-}"
 
     if [[ "$author_name" != "$APPROVED_GIT_NAME" ]]; then
       fail_identity_policy
@@ -100,9 +102,13 @@ case "$mode" in
   range)
     range_spec="${2:-}"
     [[ -z "$range_spec" ]] && usage
-    mapfile -t revisions < <(git rev-list --reverse "$range_spec")
-    if [[ ${#revisions[@]} -gt 0 ]]; then
-      check_commit_identities "${revisions[@]}"
+    if [[ "$range_spec" == *".."* ]]; then
+      mapfile -t revisions < <(git rev-list --reverse "$range_spec")
+      if [[ ${#revisions[@]} -gt 0 ]]; then
+        check_commit_identities "${revisions[@]}"
+      fi
+    else
+      check_commit_identities "$range_spec"
     fi
     ;;
   commits)

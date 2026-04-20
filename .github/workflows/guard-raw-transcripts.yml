@@ -22,16 +22,41 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           GH_SHA: ${{ github.sha }}
+          GH_EVENT_NAME: ${{ github.event_name }}
+          GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_BEFORE: ${{ github.event.before }}
         run: |
           git init .
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
           git fetch --no-tags origin "${GH_SHA}"
-          git checkout --detach FETCH_HEAD
+          if [[ "${GH_EVENT_NAME}" == "pull_request" && -n "${GH_BASE_SHA}" ]]; then
+            git fetch --no-tags origin "${GH_BASE_SHA}"
+          elif [[ -n "${GH_BEFORE}" && "${GH_BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
+            git fetch --no-tags origin "${GH_BEFORE}"
+          fi
+          git checkout --detach "${GH_SHA}"
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+
+      - name: Run git identity guard
+        shell: bash
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_BEFORE: ${{ github.event.before }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          if [[ "${GH_EVENT_NAME}" == "pull_request" && -n "${GH_BASE_SHA}" && -n "${GH_HEAD_SHA}" ]]; then
+            bash scripts/git_identity_guard.sh range "${GH_BASE_SHA}..${GH_HEAD_SHA}"
+          elif [[ -n "${GH_BEFORE}" && "${GH_BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
+            bash scripts/git_identity_guard.sh range "${GH_BEFORE}..${GH_SHA}"
+          else
+            bash scripts/git_identity_guard.sh commits "${GH_SHA}"
+          fi
 
       - name: Run privacy guard
         shell: bash

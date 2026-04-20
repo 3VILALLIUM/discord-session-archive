@@ -234,7 +234,7 @@ show_bootstrap_plan() {
   echo "2. Optionally install missing dependencies (explicit opt-in only)"
   echo "3. Create .venv if missing"
   echo "4. Install pip requirements into .venv"
-  echo "5. Set git hooks path to .githooks"
+  echo "5. Set git hooks path and safe git identity defaults"
   echo "6. Initialize local templates (.env + _local/config/*.json)"
   echo "7. Print Python version"
   echo "8. Run privacy guard"
@@ -247,6 +247,7 @@ show_bootstrap_plan() {
   echo "Possible side effects:"
   echo "- create or update .venv/"
   echo "- local git config update: core.hooksPath"
+  echo "- local git config update: user.useConfigOnly"
   echo "- create .env if missing"
   echo "- create _local/config/name_replace_map.json if missing"
   echo
@@ -434,8 +435,10 @@ echo "   Detected Python $detected_python (meets >= 3.11)"
 
 run_step "Upgrade pip" "$py" -m pip install --upgrade pip
 run_step "Install requirements" "$py" -m pip install --require-hashes -r requirements.lock.txt
-run_step "Set git hooks path" git config core.hooksPath .githooks
-run_step "Show git hooks path" git config --get core.hooksPath
+run_step "Set git hooks path" git config --local core.hooksPath .githooks
+run_step "Show git hooks path" git config --local --get core.hooksPath
+run_step "Set git identity safety default" git config --local user.useConfigOnly true
+run_step "Show git identity safety default" git config --local --type=bool --get user.useConfigOnly
 run_step "Initialize local config templates" bash ./scripts/init_local_config.sh
 run_step "Show Python version" "$py" -c "import sys; print(sys.version)"
 run_step "Privacy guard check" bash ./scripts/privacy_guard_check.sh
@@ -443,5 +446,8 @@ run_step "Privacy guard check" bash ./scripts/privacy_guard_check.sh
 echo
 echo "Bootstrap completed."
 echo "Next steps:"
-echo "1. Edit .env and set OPENAI_API_KEY"
-echo "2. Run: python ./src/discord_session_archive.py"
+echo "1. Set repo-local Git identity:"
+echo "   git config --local user.name \"3VILALLIUM\""
+echo "   git config --local user.email \"128642648+3VILALLIUM@users.noreply.github.com\""
+echo "2. Edit .env and set OPENAI_API_KEY"
+echo "3. Run: python ./src/discord_session_archive.py"

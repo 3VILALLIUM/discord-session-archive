@@ -220,7 +220,7 @@ function Show-BootstrapPlan {
     Write-Host "2. Optionally install missing dependencies (explicit opt-in only)"
     Write-Host "3. Create .venv if missing"
     Write-Host "4. Install pip requirements into .venv"
-    Write-Host "5. Set git hooks path to .githooks"
+    Write-Host "5. Set git hooks path and safe git identity defaults"
     Write-Host "6. Initialize local templates (.env + _local/config/*.json)"
     Write-Host "7. Print Python version"
     Write-Host "8. Run privacy guard"
@@ -233,6 +233,7 @@ function Show-BootstrapPlan {
     Write-Host "Possible side effects:"
     Write-Host "- create or update .venv/"
     Write-Host "- local git config update: core.hooksPath"
+    Write-Host "- local git config update: user.useConfigOnly"
     Write-Host "- create .env if missing"
     Write-Host "- create _local/config/name_replace_map.json if missing"
     Write-Host ""
@@ -427,8 +428,10 @@ Write-Host "   Detected Python $detectedPython (meets >= 3.11)"
 
 Invoke-NativeStep -Title "Upgrade pip" -Command @($py, "-m", "pip", "install", "--upgrade", "pip")
 Invoke-NativeStep -Title "Install requirements" -Command @($py, "-m", "pip", "install", "--require-hashes", "-r", "requirements.lock.txt")
-Invoke-NativeStep -Title "Set git hooks path" -Command @("git", "config", "core.hooksPath", ".githooks")
-Invoke-NativeStep -Title "Show git hooks path" -Command @("git", "config", "--get", "core.hooksPath")
+Invoke-NativeStep -Title "Set git hooks path" -Command @("git", "config", "--local", "core.hooksPath", ".githooks")
+Invoke-NativeStep -Title "Show git hooks path" -Command @("git", "config", "--local", "--get", "core.hooksPath")
+Invoke-NativeStep -Title "Set git identity safety default" -Command @("git", "config", "--local", "user.useConfigOnly", "true")
+Invoke-NativeStep -Title "Show git identity safety default" -Command @("git", "config", "--local", "--type=bool", "--get", "user.useConfigOnly")
 
 Write-Host "== Initialize local config templates =="
 & (Join-Path $PSScriptRoot "init_local_config.ps1")
@@ -447,5 +450,8 @@ if (-not $?) {
 Write-Host ""
 Write-Host "Bootstrap completed."
 Write-Host "Next steps:"
-Write-Host "1. Edit .env and set OPENAI_API_KEY"
-Write-Host "2. Run: python .\src\discord_session_archive.py"
+Write-Host '1. Set repo-local Git identity:'
+Write-Host '   git config --local user.name "3VILALLIUM"'
+Write-Host '   git config --local user.email "128642648+3VILALLIUM@users.noreply.github.com"'
+Write-Host "2. Edit .env and set OPENAI_API_KEY"
+Write-Host "3. Run: python .\src\discord_session_archive.py"

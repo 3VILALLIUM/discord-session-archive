@@ -4,6 +4,8 @@ set -euo pipefail
 APPROVED_GIT_NAME="3VILALLIUM"
 APPROVED_GIT_EMAIL="128642648+3VILALLIUM@users.noreply.github.com"
 APPROVED_HOOKS_PATH=".githooks"
+APPROVED_GITHUB_COMMITTER_NAME="GitHub"
+APPROVED_GITHUB_COMMITTER_EMAIL="noreply@github.com"
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
@@ -33,6 +35,23 @@ fail_hook_policy() {
 get_local_config() {
   local key="$1"
   git config --local --get "$key" 2>/dev/null || true
+}
+
+committer_matches_policy() {
+  local committer_name="$1"
+  local committer_email="$2"
+
+  if [[ "$committer_name" == "$APPROVED_GIT_NAME" && "$committer_email" == "$APPROVED_GIT_EMAIL" ]]; then
+    return 0
+  fi
+
+  if [[ "${ALLOW_GITHUB_ACTIONS_COMMITTER:-0}" == "1" \
+    && "$committer_name" == "$APPROVED_GITHUB_COMMITTER_NAME" \
+    && "$committer_email" == "$APPROVED_GITHUB_COMMITTER_EMAIL" ]]; then
+    return 0
+  fi
+
+  return 1
 }
 
 check_repo_config() {
@@ -75,10 +94,7 @@ check_commit_identities() {
     if [[ "$author_email" != "$APPROVED_GIT_EMAIL" ]]; then
       fail_identity_policy
     fi
-    if [[ "$committer_name" != "$APPROVED_GIT_NAME" ]]; then
-      fail_identity_policy
-    fi
-    if [[ "$committer_email" != "$APPROVED_GIT_EMAIL" ]]; then
+    if ! committer_matches_policy "$committer_name" "$committer_email"; then
       fail_identity_policy
     fi
   done

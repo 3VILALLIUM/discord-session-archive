@@ -50,11 +50,18 @@ Local-only artifacts must never be committed, including:
 4. Keep docs and commands PowerShell-first.
 5. Keep naming/source references aligned to `discord-session-archive`.
 
+## Skill Usage
+
+1. At the start of every task, check whether there is a relevant available skill for the work being requested.
+2. If a relevant skill exists, use it rather than skipping straight to an ad hoc workflow.
+3. Do not skip an obvious relevant skill just because the task seems familiar; prefer the skill-backed workflow for repeatability and reliability.
+
 ## PR Review Gate
 
-- Do not close or merge pull requests until GitHub Copilot code review has had a chance to appear and has been checked, unless the user explicitly instructs otherwise.
-- If Copilot review is not yet visible, do not close or merge the pull request; wait for the review to appear and ask the user to proceed once it is visible.
-- GitHub may auto-close superseded PRs independently, but agents must not proactively close superseded PRs before Copilot review has had a chance to finish and be checked.
+1. Do not merge a pull request until GitHub Copilot code review has appeared and has been checked.
+2. If Copilot review is not yet visible, do not merge; wait for the review to appear first.
+3. Before merge, review all Copilot feedback, take action where needed, reply in-thread, and resolve the related PR conversations unless the user explicitly says not to.
+4. GitHub may auto-close superseded PRs independently, but agents must not proactively close or merge superseded PRs before Copilot review has appeared and been checked.
 
 ## Pre-Commit Safety Checks
 

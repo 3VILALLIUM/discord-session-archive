@@ -106,6 +106,19 @@ def test_apply_name_map_to_text_uses_literal_replacement():
     assert updated == r"Player \1 joined"
 
 
+def test_apply_name_map_to_segments_updates_text_only():
+    segments = [
+        {"start": 0.0, "end": 1.0, "speaker": "Speaker One", "text": "speaker one joined @speaker-one"},
+    ]
+
+    updated = mod.apply_name_map_to_segments(segments, {"speaker one": "Alpha", "@speaker-one": "Alpha"})
+
+    assert updated == [
+        {"start": 0.0, "end": 1.0, "speaker": "Speaker One", "text": "Alpha joined Alpha"},
+    ]
+    assert segments[0]["text"] == "speaker one joined @speaker-one"
+
+
 def test_should_retry_openai_error_predicate(monkeypatch):
     class FakeOpenAIError(Exception):
         pass
@@ -548,7 +561,34 @@ def test_main_defaults_to_file_picker_when_input_omitted(tmp_path: Path, monkeyp
     assert (run_dir / f"{run_dir.name}_log.md").exists()
 
 
-def test_main_applies_unified_map_to_speaker_and_metadata(tmp_path: Path, monkeypatch):
+def test_main_applies_unified_map_to_speaker_metadata_and_body_text(tmp_path: Path, monkeypatch):
+    class AliasTextClient:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(model, file, response_format, language=None):  # noqa: ARG004
+                    return SimpleNamespace(
+                        language=language or "en",
+                        segments=[
+                            {
+                                "start": 0.0,
+                                "end": 1.0,
+                                "text": "speaker one joined late with @speaker-one",
+                                "avg_logprob": -0.2,
+                                "no_speech_prob": 0.05,
+                                "compression_ratio": 1.0,
+                            },
+                            {
+                                "start": 1.0,
+                                "end": 2.0,
+                                "text": "speaker one waved at @speaker-one",
+                                "avg_logprob": -0.2,
+                                "no_speech_prob": 0.05,
+                                "compression_ratio": 1.0,
+                            },
+                        ],
+                    )
+
     input_dir = tmp_path / "craig_export"
     input_dir.mkdir()
     (input_dir / "speaker_one.mp3").write_bytes(b"a")
@@ -568,6 +608,7 @@ def test_main_applies_unified_map_to_speaker_and_metadata(tmp_path: Path, monkey
     map_path = tmp_path / "config" / "name_replace_map.json"
     write_json(map_path, {"speaker one": "Alpha", "@speaker-one": "Alpha"})
     monkeypatch.setattr(mod, "NAME_REPLACE_MAP_PATH", map_path)
+    monkeypatch.setattr(mod, "build_client", lambda api_key: AliasTextClient())
 
     out_root = tmp_path / "out"
     mod.main(
@@ -588,7 +629,52 @@ def test_main_applies_unified_map_to_speaker_and_metadata(tmp_path: Path, monkey
     assert '  - "Alpha"' in transcript
     assert "craig_notes:" in transcript
     assert '  - "Alpha joined late"' in transcript
-    assert "[0.00s Alpha] hello" in transcript
+    assert "[0.00s Alpha] Alpha joined late with Alpha" in transcript
+    assert "[1.00s Alpha] Alpha waved at Alpha" in transcript
+
+
+def test_main_name_map_mode_none_leaves_body_text_unchanged(tmp_path: Path, monkeypatch):
+    class AliasTextClient:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(model, file, response_format, language=None):  # noqa: ARG004
+                    return SimpleNamespace(
+                        language=language or "en",
+                        segments=[
+                            {
+                                "start": 0.0,
+                                "end": 1.0,
+                                "text": "speaker one joined late with @speaker-one",
+                                "avg_logprob": -0.2,
+                                "no_speech_prob": 0.05,
+                                "compression_ratio": 1.0,
+                            }
+                        ],
+                    )
+
+    input_dir = tmp_path / "craig_export"
+    input_dir.mkdir()
+    (input_dir / "speaker_one.mp3").write_bytes(b"a")
+
+    out_root = tmp_path / "out"
+    monkeypatch.setattr(mod, "build_client", lambda api_key: AliasTextClient())
+    mod.main(
+        [
+            "--input",
+            str(input_dir),
+            "--output-root",
+            str(out_root),
+            "--name-map-mode",
+            "none",
+            "--force",
+            "--quiet",
+        ]
+    )
+
+    run_dir = next(out_root.iterdir())
+    transcript = (run_dir / f"{run_dir.name}_transcript.md").read_text(encoding="utf-8")
+    assert "[0.00s speaker one] speaker one joined late with @speaker-one" in transcript
 
 
 def test_parse_craig_info_captures_note_section_lines(tmp_path: Path):

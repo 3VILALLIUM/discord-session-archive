@@ -427,6 +427,14 @@ git status --short
 .\scripts\privacy_guard_check.ps1
 ```
 
+### `pip-audit` reports `CVE-2026-3219` for `pip`
+
+The Privacy Guard workflow runs dependency checks after the repository privacy guard.
+`pip 26.0.1` is currently the latest pip release, and `CVE-2026-3219` has no fixed release yet.
+
+The workflow and `scripts/preflight.ps1` audit `requirements.lock.txt` directly and ignore only this no-fix pip advisory.
+Remove the ignore when pip publishes a fixed release.
+
 ### `ERROR: git identity does not match repo policy`
 
 Fix:

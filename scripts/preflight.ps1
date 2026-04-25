@@ -52,7 +52,16 @@ Invoke-NativeStep "privacy_guard_check.sh" { bash "./scripts/privacy_guard_check
 
 Invoke-NativeStep "pip check" { & $py -m pip check }
 
-Invoke-NativeStep "pip-audit" { & $py -m pip_audit --progress-spinner off }
+$pipAuditArgs = @(
+    "-m", "pip_audit",
+    "-r", "requirements.lock.txt",
+    "--require-hashes",
+    "--disable-pip",
+    "--progress-spinner", "off",
+    "--ignore-vuln", "CVE-2026-3219"
+)
+# pip 26.0.1 is currently the latest pip release and CVE-2026-3219 has no fixed release yet.
+Invoke-NativeStep "pip-audit" { & $py @pipAuditArgs }
 
 Invoke-NativeStep "compileall src tests" { & $py -m compileall src tests }
 

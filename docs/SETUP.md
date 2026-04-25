@@ -307,6 +307,6 @@ You are ready when:
 - `.venv` exists
 - `pip install --require-hashes -r requirements.lock.txt` completed
 - `git config --get core.hooksPath` returns `.githooks`
-- `.\scripts\pr_action_policy_check.ps1` passes
+- the PR action policy guard for your shell passes (`.\scripts\pr_action_policy_check.ps1` or `bash ./scripts/pr_action_policy_check.sh`)
 - `.env` has real `OPENAI_API_KEY`
 - `_local/config/name_replace_map.json` exists

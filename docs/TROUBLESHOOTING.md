@@ -403,6 +403,11 @@ git status --short
 .\scripts\pr_action_policy_check.ps1
 ```
 
+```bash
+git status --short
+bash ./scripts/pr_action_policy_check.sh
+```
+
 Keep `AGENTS.md` aligned with the required PR Review Gate:
 - Copilot code review must be complete and checked before PR action.
 - Conversations, review threads, and comments must be read before merge.

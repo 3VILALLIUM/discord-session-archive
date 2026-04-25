@@ -15,7 +15,7 @@ section="$(
     /^## PR Review Gate[[:space:]]*$/ { in_section = 1; next }
     /^## / && in_section { exit }
     in_section { print }
-  ' "$agents_path"
+  ' "$agents_path" | tr -d '\r'
 )"
 
 if [[ -z "$section" ]]; then

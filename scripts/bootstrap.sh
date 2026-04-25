@@ -237,7 +237,8 @@ show_bootstrap_plan() {
   echo "5. Set git hooks path and safe git identity defaults"
   echo "6. Initialize local templates (.env + _local/config/*.json)"
   echo "7. Print Python version"
-  echo "8. Run privacy guard"
+  echo "8. Run PR action policy guard"
+  echo "9. Run privacy guard"
   echo
   echo "Network actions:"
   echo "- pip install --upgrade pip"
@@ -441,6 +442,7 @@ run_step "Set git identity safety default" git config --local user.useConfigOnly
 run_step "Show git identity safety default" git config --local --type=bool --get user.useConfigOnly
 run_step "Initialize local config templates" bash ./scripts/init_local_config.sh
 run_step "Show Python version" "$py" -c "import sys; print(sys.version)"
+run_step "PR action policy check" bash ./scripts/pr_action_policy_check.sh
 run_step "Privacy guard check" bash ./scripts/privacy_guard_check.sh
 
 echo

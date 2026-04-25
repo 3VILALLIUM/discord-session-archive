@@ -46,10 +46,14 @@ else
 fi
 
 if [[ ${#outgoing_commits[@]} -gt 0 ]]; then
-  mapfile -t unique_commits < <(printf '%s\n' "${outgoing_commits[@]}" | sort -u)
+  unique_commits=()
+  while read -r sha; do
+    [[ -n "$sha" ]] && unique_commits+=("$sha")
+  done < <(printf '%s\n' "${outgoing_commits[@]}" | sort -u)
   bash scripts/git_identity_guard.sh commits "${unique_commits[@]}"
 fi
 
+bash scripts/pr_action_policy_check.sh
 bash scripts/privacy_guard_check.sh
 if [[ -f ".venv/Scripts/python.exe" ]]; then
   py=".venv/Scripts/python.exe"

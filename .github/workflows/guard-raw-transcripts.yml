@@ -44,7 +44,6 @@ jobs:
       - name: Run git identity guard
         shell: bash
         env:
-          ALLOW_GITHUB_ACTIONS_COMMITTER: ${{ github.event_name == 'push' && '1' || '0' }}
           GH_EVENT_NAME: ${{ github.event_name }}
           GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -63,6 +62,14 @@ jobs:
         shell: bash
         run: bash scripts/privacy_guard_check.sh
 
+      - name: Run PR action policy guard
+        shell: bash
+        run: bash scripts/pr_action_policy_check.sh
+
+      - name: Run PR action policy guard PowerShell parity
+        shell: pwsh
+        run: ./scripts/pr_action_policy_check.ps1
+
       - name: Run docs consistency check
         shell: pwsh
         run: ./scripts/docs_consistency_check.ps1 -ValidateTroubleshooting
@@ -79,7 +86,10 @@ jobs:
 
       - name: Dependency vulnerability scan
         shell: bash
-        run: python -m pip_audit --progress-spinner off
+        run: |
+          # Audit the locked dependency set directly. pip 26.0.1 is currently
+          # the latest pip release and CVE-2026-3219 has no fixed release yet.
+          python -m pip_audit -r requirements.lock.txt --require-hashes --disable-pip --progress-spinner off --ignore-vuln CVE-2026-3219
 
       - name: Compile smoke check
         shell: bash

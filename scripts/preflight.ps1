@@ -37,6 +37,8 @@ Invoke-NativeStep "git_identity_guard.ps1" { & (Join-Path $PSScriptRoot "git_ide
 
 Invoke-NativeStep "docs_consistency_check.ps1" { & (Join-Path $PSScriptRoot "docs_consistency_check.ps1") -ValidateTroubleshooting }
 
+Invoke-NativeStep "pr_action_policy_check.ps1" { & (Join-Path $PSScriptRoot "pr_action_policy_check.ps1") }
+
 Invoke-NativeStep "privacy_guard_check.ps1" { & (Join-Path $PSScriptRoot "privacy_guard_check.ps1") }
 
 $bashCmd = Get-Command bash -ErrorAction SilentlyContinue
@@ -44,11 +46,22 @@ if (-not $bashCmd) {
     throw "bash is required for shell guard parity checks. Install Git Bash and retry."
 }
 
+Invoke-NativeStep "pr_action_policy_check.sh" { bash "./scripts/pr_action_policy_check.sh" }
+
 Invoke-NativeStep "privacy_guard_check.sh" { bash "./scripts/privacy_guard_check.sh" }
 
 Invoke-NativeStep "pip check" { & $py -m pip check }
 
-Invoke-NativeStep "pip-audit" { & $py -m pip_audit --progress-spinner off }
+$pipAuditArgs = @(
+    "-m", "pip_audit",
+    "-r", "requirements.lock.txt",
+    "--require-hashes",
+    "--disable-pip",
+    "--progress-spinner", "off",
+    "--ignore-vuln", "CVE-2026-3219"
+)
+# pip 26.0.1 is currently the latest pip release and CVE-2026-3219 has no fixed release yet.
+Invoke-NativeStep "pip-audit" { & $py @pipAuditArgs }
 
 Invoke-NativeStep "compileall src tests" { & $py -m compileall src tests }
 

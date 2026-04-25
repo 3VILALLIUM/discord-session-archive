@@ -392,6 +392,29 @@ Use `--quiet` only to reduce console output. By itself, it still performs normal
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run --quiet
 ```
 
+## PR Action Policy Guard Failures
+
+### `ERROR: PR action policy guard failed.`
+
+Fix:
+
+```powershell
+git status --short
+.\scripts\pr_action_policy_check.ps1
+```
+
+```bash
+git status --short
+bash ./scripts/pr_action_policy_check.sh
+```
+
+Keep `AGENTS.md` aligned with the required PR Review Gate:
+- Copilot code review must be complete and checked before PR action.
+- Conversations, review threads, and comments must be read before merge.
+- Actionable comments must be addressed, replied to, and resolved before merge.
+- Close requires explicit close instruction.
+- Merge requires an explicit standalone `MERGE` instruction.
+
 ## Privacy Guard Failures
 
 ### `ERROR: privacy guard blocked commit`
@@ -403,6 +426,14 @@ git restore --staged <path>
 git status --short
 .\scripts\privacy_guard_check.ps1
 ```
+
+### `pip-audit` reports `CVE-2026-3219` for `pip`
+
+The Privacy Guard workflow runs dependency checks after the repository privacy guard.
+`pip 26.0.1` is currently the latest pip release, and `CVE-2026-3219` has no fixed release yet.
+
+The workflow and `scripts/preflight.ps1` audit `requirements.lock.txt` directly and ignore only this no-fix pip advisory.
+Remove the ignore when pip publishes a fixed release.
 
 ### `ERROR: git identity does not match repo policy`
 

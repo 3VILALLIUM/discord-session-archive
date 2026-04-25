@@ -223,7 +223,8 @@ function Show-BootstrapPlan {
     Write-Host "5. Set git hooks path and safe git identity defaults"
     Write-Host "6. Initialize local templates (.env + _local/config/*.json)"
     Write-Host "7. Print Python version"
-    Write-Host "8. Run privacy guard"
+    Write-Host "8. Run PR action policy guard"
+    Write-Host "9. Run privacy guard"
     Write-Host ""
     Write-Host "Network actions:"
     Write-Host "- pip install --upgrade pip"
@@ -440,6 +441,12 @@ if (-not $?) {
 }
 
 Invoke-NativeStep -Title "Show Python version" -Command @($py, "-c", "import sys; print(sys.version)")
+
+Write-Host "== PR action policy check =="
+& (Join-Path $PSScriptRoot "pr_action_policy_check.ps1")
+if (-not $?) {
+    throw "pr_action_policy_check.ps1 failed."
+}
 
 Write-Host "== Privacy guard check =="
 & (Join-Path $PSScriptRoot "privacy_guard_check.ps1")

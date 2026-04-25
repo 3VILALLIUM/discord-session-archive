@@ -4,5 +4,6 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+bash scripts/git_identity_guard.sh config
 bash scripts/pr_action_policy_check.sh
 bash scripts/privacy_guard_check.sh

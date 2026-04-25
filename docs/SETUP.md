@@ -18,6 +18,7 @@ Audit-first commands (PowerShell):
 ```powershell
 git status --short
 cmd /c findstr /n ".*" scripts\bootstrap.ps1
+cmd /c findstr /n ".*" scripts\git_identity_guard.ps1
 cmd /c findstr /n ".*" scripts\init_local_config.ps1
 cmd /c findstr /n ".*" scripts\pr_action_policy_check.ps1
 cmd /c findstr /n ".*" scripts\privacy_guard_check.ps1
@@ -30,6 +31,7 @@ Audit-first commands (bash):
 ```bash
 git status --short
 cat -n scripts/bootstrap.sh
+cat -n scripts/git_identity_guard.sh
 cat -n scripts/init_local_config.sh
 cat -n scripts/pr_action_policy_check.sh
 cat -n scripts/privacy_guard_check.sh
@@ -42,7 +44,7 @@ cat -n .githooks/pre-push
 - Automated setup (recommended): `scripts/bootstrap.ps1` (Windows PowerShell) or `scripts/bootstrap.sh` (bash).
 - Manual setup: explicit commands with no bootstrap script execution.
 
-After setup completes, the repo is ready to run after you set `OPENAI_API_KEY` in `.env`.
+After setup completes, the repo is ready to run after you set `OPENAI_API_KEY` in `.env` and configure the repo-local Git identity shown below.
 
 ## Automated Setup (Bootstrap)
 
@@ -95,6 +97,7 @@ Bootstrap done state:
 
 - `.venv` exists and requirements installed
 - `core.hooksPath` is `.githooks`
+- `user.useConfigOnly` is `true`
 - PR action policy guard passed
 - `.env` exists
 - `_local/config/name_replace_map.json` exists
@@ -133,14 +136,25 @@ python -m pip install --upgrade pip
 pip install --require-hashes -r requirements.lock.txt
 ```
 
-### 3. Configure hooks
+### 3. Configure hooks and git identity safety
 
 ```powershell
-git config core.hooksPath .githooks
-git config --get core.hooksPath
+git config --local core.hooksPath .githooks
+git config --local user.useConfigOnly true
+git config --local user.name "3VILALLIUM"
+git config --local user.email "128642648+3VILALLIUM@users.noreply.github.com"
+git config --local core.hooksPath
+git config --local user.useConfigOnly
+git config --local user.name
+git config --local user.email
 ```
 
-Expected value: `.githooks`
+Expected values:
+
+- `core.hooksPath` -> `.githooks`
+- `user.useConfigOnly` -> `true`
+- `user.name` -> `3VILALLIUM`
+- `user.email` -> `128642648+3VILALLIUM@users.noreply.github.com`
 
 ### 4. Initialize local templates
 
@@ -160,11 +174,13 @@ This creates local-only files if missing:
 ### 5. Run guard checks
 
 ```powershell
+.\scripts\git_identity_guard.ps1
 .\scripts\pr_action_policy_check.ps1
 .\scripts\privacy_guard_check.ps1
 ```
 
 ```bash
+bash ./scripts/git_identity_guard.sh config
 bash ./scripts/pr_action_policy_check.sh
 bash ./scripts/privacy_guard_check.sh
 ```
@@ -307,6 +323,8 @@ You are ready when:
 - `.venv` exists
 - `pip install --require-hashes -r requirements.lock.txt` completed
 - `git config --get core.hooksPath` returns `.githooks`
+- `git config --get user.useConfigOnly` returns `true`
+- the git identity guard for your shell passes (`.\scripts\git_identity_guard.ps1` or `bash ./scripts/git_identity_guard.sh config`)
 - the PR action policy guard for your shell passes (`.\scripts\pr_action_policy_check.ps1` or `bash ./scripts/pr_action_policy_check.sh`)
 - `.env` has real `OPENAI_API_KEY`
 - `_local/config/name_replace_map.json` exists

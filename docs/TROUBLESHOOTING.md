@@ -427,13 +427,35 @@ git status --short
 .\scripts\privacy_guard_check.ps1
 ```
 
+### `ERROR: git identity does not match repo policy`
+
+Fix:
+
+```powershell
+git config --local user.name "3VILALLIUM"
+git config --local user.email "128642648+3VILALLIUM@users.noreply.github.com"
+git config --local user.useConfigOnly true
+git config --local core.hooksPath .githooks
+.\scripts\git_identity_guard.ps1
+```
+
+### `ERROR: git hooks are not configured for this repository`
+
+Fix:
+
+```powershell
+git config --local core.hooksPath .githooks
+.\scripts\git_identity_guard.ps1
+```
+
 ## Hooks Not Running
 
 Fix:
 
 ```powershell
-git config core.hooksPath .githooks
-git config --get core.hooksPath
+git config --local core.hooksPath .githooks
+git config --local user.useConfigOnly true
+git config --local core.hooksPath
 ```
 
 Expected value: `.githooks`.

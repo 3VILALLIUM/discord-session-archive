@@ -46,12 +46,14 @@ Do not commit audio, transcripts, logs, or secrets.
 
 You are responsible for understanding and complying with all applicable laws and regulations related to audio recording, consent, and transcription in your jurisdiction. This project does not provide legal advice.
 
-Privacy and agent PR-action guardrails are enforced by:
+Privacy, identity, and agent PR-action guardrails are enforced by:
 - `.gitignore`
 - `.githooks/pre-commit`
 - `.githooks/pre-push`
 - `scripts/pr_action_policy_check.ps1`
 - `scripts/pr_action_policy_check.sh`
+- `scripts/git_identity_guard.ps1`
+- `scripts/git_identity_guard.sh`
 - `scripts/privacy_guard_check.ps1`
 - `scripts/privacy_guard_check.sh`
 - `.github/workflows/guard-raw-transcripts.yml`

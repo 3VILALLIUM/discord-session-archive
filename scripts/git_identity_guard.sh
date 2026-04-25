@@ -49,9 +49,7 @@ committer_matches_policy() {
     return 0
   fi
 
-  if [[ "${ALLOW_GITHUB_ACTIONS_COMMITTER:-0}" == "1" \
-    && "${GITHUB_ACTIONS:-}" == "true" \
-    && "$committer_name" == "$APPROVED_GITHUB_COMMITTER_NAME" \
+  if [[ "$committer_name" == "$APPROVED_GITHUB_COMMITTER_NAME" \
     && "$committer_email" == "$APPROVED_GITHUB_COMMITTER_EMAIL" ]]; then
     return 0
   fi

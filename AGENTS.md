@@ -40,7 +40,8 @@ Local-only artifacts must never be committed, including:
    - `user.email`: `128642648+3VILALLIUM@users.noreply.github.com`
 4. Require `git config --local user.useConfigOnly true` so Git refuses fallback identity generation.
 5. Require `git config --local core.hooksPath .githooks` so identity/privacy hooks stay active.
-6. Never echo rejected local identity values in public PR text, commit messages, docs, workflow logs, or screenshots.
+6. GitHub-created commits may use `GitHub <noreply@github.com>` committer metadata; author metadata must still use the approved repo identity.
+7. Never echo rejected local identity values in public PR text, commit messages, docs, workflow logs, or screenshots.
 
 ## Working Style for Agents
 

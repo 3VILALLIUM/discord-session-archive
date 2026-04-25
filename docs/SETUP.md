@@ -19,6 +19,7 @@ Audit-first commands (PowerShell):
 git status --short
 cmd /c findstr /n ".*" scripts\bootstrap.ps1
 cmd /c findstr /n ".*" scripts\init_local_config.ps1
+cmd /c findstr /n ".*" scripts\pr_action_policy_check.ps1
 cmd /c findstr /n ".*" scripts\privacy_guard_check.ps1
 cmd /c findstr /n ".*" .githooks\pre-commit
 cmd /c findstr /n ".*" .githooks\pre-push
@@ -30,6 +31,7 @@ Audit-first commands (bash):
 git status --short
 cat -n scripts/bootstrap.sh
 cat -n scripts/init_local_config.sh
+cat -n scripts/pr_action_policy_check.sh
 cat -n scripts/privacy_guard_check.sh
 cat -n .githooks/pre-commit
 cat -n .githooks/pre-push
@@ -93,6 +95,7 @@ Bootstrap done state:
 
 - `.venv` exists and requirements installed
 - `core.hooksPath` is `.githooks`
+- PR action policy guard passed
 - `.env` exists
 - `_local/config/name_replace_map.json` exists
 
@@ -154,7 +157,19 @@ This creates local-only files if missing:
 - `.env`
 - `_local/config/name_replace_map.json`
 
-### 5. Set API key
+### 5. Run guard checks
+
+```powershell
+.\scripts\pr_action_policy_check.ps1
+.\scripts\privacy_guard_check.ps1
+```
+
+```bash
+bash ./scripts/pr_action_policy_check.sh
+bash ./scripts/privacy_guard_check.sh
+```
+
+### 6. Set API key
 
 Edit `.env`:
 
@@ -292,5 +307,6 @@ You are ready when:
 - `.venv` exists
 - `pip install --require-hashes -r requirements.lock.txt` completed
 - `git config --get core.hooksPath` returns `.githooks`
+- `.\scripts\pr_action_policy_check.ps1` passes
 - `.env` has real `OPENAI_API_KEY`
 - `_local/config/name_replace_map.json` exists

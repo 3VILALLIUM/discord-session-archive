@@ -20,6 +20,7 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 
 ## Docs Map
 
+- `AGENTS.md`: coding-agent operating rules, including PR review and merge gates.
 - `docs/SETUP.md`: canonical setup source (automated bootstrap + manual path + default picker run).
 - `docs/ARCHITECTURE.md`: single-run architecture and run artifact contract.
 - `docs/PRIVACY.md`: privacy model, guardrails, and audit commands.
@@ -32,6 +33,7 @@ Huge thanks to the Craig project for making Discord recording workflows possible
 - `docs/SETUP.md` owns CLI flag definitions and defaults.
 - `docs/ARCHITECTURE.md` owns the run artifact/output contract and run ID naming behavior.
 - `docs/TROUBLESHOOTING.md` owns symptom-to-fix recipes.
+- `AGENTS.md` owns coding-agent PR review and merge behavior.
 - `README.md` keeps only high-level summary and links.
 
 Maintenance note:

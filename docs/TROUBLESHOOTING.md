@@ -392,6 +392,24 @@ Use `--quiet` only to reduce console output. By itself, it still performs normal
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run --quiet
 ```
 
+## PR Action Policy Guard Failures
+
+### `ERROR: PR action policy guard failed.`
+
+Fix:
+
+```powershell
+git status --short
+.\scripts\pr_action_policy_check.ps1
+```
+
+Keep `AGENTS.md` aligned with the required PR Review Gate:
+- Copilot code review must be complete and checked before PR action.
+- Conversations, review threads, and comments must be read before merge.
+- Actionable comments must be addressed, replied to, and resolved before merge.
+- Close requires explicit close instruction.
+- Merge requires an explicit standalone `MERGE` instruction.
+
 ## Privacy Guard Failures
 
 ### `ERROR: privacy guard blocked commit`

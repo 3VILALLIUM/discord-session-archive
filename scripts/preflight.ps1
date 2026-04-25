@@ -35,12 +35,16 @@ Invoke-NativeStep "git ls-files" { git ls-files }
 
 Invoke-NativeStep "docs_consistency_check.ps1" { & (Join-Path $PSScriptRoot "docs_consistency_check.ps1") -ValidateTroubleshooting }
 
+Invoke-NativeStep "pr_action_policy_check.ps1" { & (Join-Path $PSScriptRoot "pr_action_policy_check.ps1") }
+
 Invoke-NativeStep "privacy_guard_check.ps1" { & (Join-Path $PSScriptRoot "privacy_guard_check.ps1") }
 
 $bashCmd = Get-Command bash -ErrorAction SilentlyContinue
 if (-not $bashCmd) {
     throw "bash is required for shell guard parity checks. Install Git Bash and retry."
 }
+
+Invoke-NativeStep "pr_action_policy_check.sh" { bash "./scripts/pr_action_policy_check.sh" }
 
 Invoke-NativeStep "privacy_guard_check.sh" { bash "./scripts/privacy_guard_check.sh" }
 

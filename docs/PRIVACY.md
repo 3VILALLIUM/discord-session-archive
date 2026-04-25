@@ -33,8 +33,9 @@ Do not commit:
 ## Guardrails
 
 - `.gitignore` blocks `_local/`, `.env`, and sensitive file classes/extensions.
-- `.githooks/pre-commit` runs privacy checks before commit.
-- `.githooks/pre-push` runs privacy checks and tests before push, and blocks direct pushes to `origin/main`.
+- `.githooks/pre-commit` runs PR action policy and privacy checks before commit.
+- `.githooks/pre-push` runs PR action policy checks, privacy checks, and tests before push, and blocks direct pushes to `origin/main`.
+- `scripts/pr_action_policy_check.ps1` / `scripts/pr_action_policy_check.sh` block weakening the AGENTS.md completed-review, conversation, and close/MERGE gates.
 - `scripts/privacy_guard_check.ps1` / `scripts/privacy_guard_check.sh` block tracked `.env`, `_local/**`, forbidden extensions, exact generated filenames (`transcript.md`, `transcript.cleaned.md`, `transcript.json`, `notebooklm.md`), and run-style generated markdown names (`*_transcript.md`, `*_log.md`).
 - `.github/workflows/guard-raw-transcripts.yml` enforces the same script checks in CI.
 

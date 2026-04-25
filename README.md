@@ -46,15 +46,18 @@ Do not commit audio, transcripts, logs, or secrets.
 
 You are responsible for understanding and complying with all applicable laws and regulations related to audio recording, consent, and transcription in your jurisdiction. This project does not provide legal advice.
 
-Guardrails are enforced by:
+Privacy and agent PR-action guardrails are enforced by:
 - `.gitignore`
 - `.githooks/pre-commit`
 - `.githooks/pre-push`
+- `scripts/pr_action_policy_check.ps1`
+- `scripts/pr_action_policy_check.sh`
 - `scripts/privacy_guard_check.ps1`
 - `scripts/privacy_guard_check.sh`
 - `.github/workflows/guard-raw-transcripts.yml`
 
-These guardrails reduce accidental git tracking risk, but local transcript and run log artifacts can still contain sensitive session metadata and local context if you manually share them. Details are in `docs/PRIVACY.md`.
+Privacy guardrails reduce accidental git tracking risk, but local transcript and run log artifacts can still contain sensitive session metadata and local context if you manually share them. Details are in `docs/PRIVACY.md`.
+Agent PR-action guardrails block weakening the completed-review, conversation, and close/merge rules in `AGENTS.md`.
 
 ## Documentation
 

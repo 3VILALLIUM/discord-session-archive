@@ -37,6 +37,14 @@ jobs:
         shell: bash
         run: bash scripts/privacy_guard_check.sh
 
+      - name: Run PR action policy guard
+        shell: bash
+        run: bash scripts/pr_action_policy_check.sh
+
+      - name: Run PR action policy guard PowerShell parity
+        shell: pwsh
+        run: ./scripts/pr_action_policy_check.ps1
+
       - name: Run docs consistency check
         shell: pwsh
         run: ./scripts/docs_consistency_check.ps1 -ValidateTroubleshooting

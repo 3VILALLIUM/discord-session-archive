@@ -20,6 +20,7 @@ git status --short
 cmd /c findstr /n ".*" scripts\bootstrap.ps1
 cmd /c findstr /n ".*" scripts\git_identity_guard.ps1
 cmd /c findstr /n ".*" scripts\init_local_config.ps1
+cmd /c findstr /n ".*" scripts\pr_action_policy_check.ps1
 cmd /c findstr /n ".*" scripts\privacy_guard_check.ps1
 cmd /c findstr /n ".*" .githooks\pre-commit
 cmd /c findstr /n ".*" .githooks\pre-push
@@ -32,6 +33,7 @@ git status --short
 cat -n scripts/bootstrap.sh
 cat -n scripts/git_identity_guard.sh
 cat -n scripts/init_local_config.sh
+cat -n scripts/pr_action_policy_check.sh
 cat -n scripts/privacy_guard_check.sh
 cat -n .githooks/pre-commit
 cat -n .githooks/pre-push
@@ -96,6 +98,7 @@ Bootstrap done state:
 - `.venv` exists and requirements installed
 - `core.hooksPath` is `.githooks`
 - `user.useConfigOnly` is `true`
+- PR action policy guard passed
 - `.env` exists
 - `_local/config/name_replace_map.json` exists
 
@@ -168,18 +171,26 @@ This creates local-only files if missing:
 - `.env`
 - `_local/config/name_replace_map.json`
 
-### 5. Set API key
+### 5. Run guard checks
+
+```powershell
+.\scripts\git_identity_guard.ps1
+.\scripts\pr_action_policy_check.ps1
+.\scripts\privacy_guard_check.ps1
+```
+
+```bash
+bash ./scripts/git_identity_guard.sh config
+bash ./scripts/pr_action_policy_check.sh
+bash ./scripts/privacy_guard_check.sh
+```
+
+### 6. Set API key
 
 Edit `.env`:
 
 ```env
 OPENAI_API_KEY=your_real_key_here
-```
-
-### 6. Verify git identity guard
-
-```powershell
-.\scripts\git_identity_guard.ps1
 ```
 
 ## Name Replacement Map
@@ -312,5 +323,8 @@ You are ready when:
 - `.venv` exists
 - `pip install --require-hashes -r requirements.lock.txt` completed
 - `git config --get core.hooksPath` returns `.githooks`
+- `git config --get user.useConfigOnly` returns `true`
+- the git identity guard for your shell passes (`.\scripts\git_identity_guard.ps1` or `bash ./scripts/git_identity_guard.sh config`)
+- the PR action policy guard for your shell passes (`.\scripts\pr_action_policy_check.ps1` or `bash ./scripts/pr_action_policy_check.sh`)
 - `.env` has real `OPENAI_API_KEY`
 - `_local/config/name_replace_map.json` exists

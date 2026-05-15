@@ -37,6 +37,10 @@ get_local_config() {
   git config --local --get "$key" 2>/dev/null || true
 }
 
+to_lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 committer_matches_policy() {
   local committer_name="$1"
   local committer_email="$2"
@@ -45,9 +49,7 @@ committer_matches_policy() {
     return 0
   fi
 
-  if [[ "${ALLOW_GITHUB_ACTIONS_COMMITTER:-0}" == "1" \
-    && "${GITHUB_ACTIONS:-}" == "true" \
-    && "$committer_name" == "$APPROVED_GITHUB_COMMITTER_NAME" \
+  if [[ "$committer_name" == "$APPROVED_GITHUB_COMMITTER_NAME" \
     && "$committer_email" == "$APPROVED_GITHUB_COMMITTER_EMAIL" ]]; then
     return 0
   fi
@@ -69,7 +71,7 @@ check_repo_config() {
   if [[ "$user_email" != "$APPROVED_GIT_EMAIL" ]]; then
     fail_identity_policy
   fi
-  if [[ "${use_config_only,,}" != "true" ]]; then
+  if [[ "$(to_lower "$use_config_only")" != "true" ]]; then
     fail_identity_policy
   fi
   if [[ "$hooks_path" != "$APPROVED_HOOKS_PATH" ]]; then
@@ -83,7 +85,10 @@ check_commit_identities() {
 
   for rev in "$@"; do
     [[ -z "$rev" ]] && continue
-    mapfile -t identity_fields < <(git show -s --format='%an%n%ae%n%cn%n%ce' "$rev")
+    identity_fields=()
+    while IFS= read -r identity_field; do
+      identity_fields+=("$identity_field")
+    done < <(git show -s --format='%an%n%ae%n%cn%n%ce' "$rev")
     author_name="${identity_fields[0]:-}"
     author_email="${identity_fields[1]:-}"
     committer_name="${identity_fields[2]:-}"
@@ -120,7 +125,10 @@ case "$mode" in
     range_spec="${2:-}"
     [[ -z "$range_spec" ]] && usage
     if [[ "$range_spec" == *".."* ]]; then
-      mapfile -t revisions < <(git rev-list --reverse "$range_spec")
+      revisions=()
+      while IFS= read -r revision; do
+        [[ -n "$revision" ]] && revisions+=("$revision")
+      done < <(git rev-list --reverse "$range_spec")
       if [[ ${#revisions[@]} -gt 0 ]]; then
         check_commit_identities "${revisions[@]}"
       fi

@@ -34,7 +34,7 @@ foreach ($path in $tracked) {
 }
 
 $secretPatterns = @(
-    'sk-[A-Za-z0-9]{20,}',
+    'sk-(proj-)?[A-Za-z0-9_-]{20,}',
     'gh[pousr]_[A-Za-z0-9]{20,}',
     'AKIA[0-9A-Z]{16}',
     'ASIA[0-9A-Z]{16}',

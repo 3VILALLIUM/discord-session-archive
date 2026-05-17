@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://discord-session-archive/schemas/asr_profile.schema.json",
+  "title": "ASR Profile Registry",
+  "type": "object",
+  "required": ["version", "default_profile_id", "profiles"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "default_profile_id": { "type": "string", "minLength": 1 },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "required": [
+        "id", "enabled", "source_type", "audio_layout", "deepgram",
+        "topic_tagging", "privacy_contract", "idempotency", "normalizer_version"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_\\-.]+$" },
+        "enabled": { "type": "boolean" },
+        "source_type": { "const": "craig" },
+        "audio_layout": { "const": "single_track_mixed" },
+        "description": { "type": "string" },
+        "deepgram": { "$ref": "#/$defs/deepgram" },
+        "topic_tagging": { "$ref": "#/$defs/topicTagging" },
+        "privacy_contract": { "$ref": "#/$defs/privacyContract" },
+        "idempotency": { "$ref": "#/$defs/idempotency" },
+        "normalizer_version": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "deepgram": {
+      "type": "object",
+      "required": [
+        "model", "language", "utterances", "diarize", "smart_format", "punctuate", "topics", "mip_opt_out"
+      ],
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 2 },
+        "utterances": { "const": true },
+        "diarize": { "type": "boolean" },
+        "smart_format": { "type": "boolean" },
+        "punctuate": { "type": "boolean" },
+        "paragraphs": { "type": "boolean" },
+        "topics": { "type": "boolean" },
+        "mip_opt_out": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "topicTagging": {
+      "type": "object",
+      "required": ["enabled", "mode", "predefined_topic_set_id", "max_model_topics", "min_confidence"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mode": { "enum": ["predefined", "model", "hybrid"] },
+        "predefined_topic_set_id": { "type": "string", "minLength": 1 },
+        "max_model_topics": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "min_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "privacyContract": {
+      "type": "object",
+      "required": [
+        "contract_version", "strip_guild_name", "strip_discord_handles",
+        "replace_spoken_names_with_chosen_names", "fallback_name_format", "block_export_on_any_pii_match"
+      ],
+      "properties": {
+        "contract_version": { "const": "1.0.0" },
+        "strip_guild_name": { "const": true },
+        "strip_discord_handles": { "const": true },
+        "replace_spoken_names_with_chosen_names": { "const": true },
+        "fallback_name_format": { "type": "string", "minLength": 1 },
+        "block_export_on_any_pii_match": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "idempotency": {
+      "type": "object",
+      "required": ["key_fields"],
+      "properties": {
+        "key_fields": {
+          "type": "array",
+          "minItems": 5,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

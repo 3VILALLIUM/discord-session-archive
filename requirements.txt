@@ -1,7 +1,16 @@
 pydub>=0.25.1
-python-dotenv
-openai
-tenacity
-pytest
-pip-audit
+python-dotenv>=1.0.1
+tenacity>=9.0.0
+jsonschema>=4.23.0
+pytest>=8.3.0
+pip-audit>=2.7.0
 setuptools>=78.1.1
+
+# ASR provider (Deepgram)
+deepgram-sdk>=3.7.0
+
+# Neon/Postgres access
+psycopg[binary]>=3.2.0
+
+# Legacy dependency retained until whisper-1 code path is removed from src/
+openai>=1.0.0

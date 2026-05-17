@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://discord-session-archive/schemas/final_output_contract.schema.json",
+  "title": "Final Sanitized Output Contract",
+  "type": "object",
+  "required": ["contract_version", "session", "source", "privacy", "participants", "transcript"],
+  "properties": {
+    "contract_version": { "const": "1.0.0" },
+    "session": {
+      "type": "object",
+      "required": ["session_uid", "started_at_utc", "timezone_original", "duration_seconds"],
+      "properties": {
+        "session_uid": { "type": "string", "minLength": 1 },
+        "started_at_utc": { "type": "string", "format": "date-time" },
+        "timezone_original": { "type": "string", "minLength": 1 },
+        "duration_seconds": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["source_type", "audio_layout", "artifact_sha256"],
+      "properties": {
+        "source_type": { "const": "craig" },
+        "audio_layout": { "const": "single_track_mixed" },
+        "artifact_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "pii_stripping_applied", "handle_redaction_applied", "spoken_name_redaction_applied", "guild_name_redacted"
+      ],
+      "properties": {
+        "pii_stripping_applied": { "const": true },
+        "handle_redaction_applied": { "const": true },
+        "spoken_name_redaction_applied": { "const": true },
+        "guild_name_redacted": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["participant_id", "chosen_name", "display_label"],
+        "properties": {
+          "participant_id": { "type": "string", "pattern": "^p[0-9]{2,}$" },
+          "chosen_name": { "type": "string", "minLength": 1 },
+          "display_label": { "type": "string", "minLength": 1 },
+          "speaker_tags": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "transcript": {
+      "type": "object",
+      "required": ["segments"],
+      "properties": {
+        "segments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["segment_id", "start_ms", "end_ms", "participant_id", "speaker_label", "text"],
+            "properties": {
+              "segment_id": { "type": "string", "minLength": 1 },
+              "start_ms": { "type": "integer", "minimum": 0 },
+              "end_ms": { "type": "integer", "minimum": 0 },
+              "participant_id": { "type": "string", "pattern": "^p[0-9]{2,}$" },
+              "speaker_label": { "type": "string", "minLength": 1 },
+              "text": { "type": "string", "minLength": 1 },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["topic_key", "source", "confidence"],
+                  "properties": {
+                    "topic_key": { "type": "string", "minLength": 1 },
+                    "source": { "enum": ["predefined", "model"] },
+                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "topics_summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["topic_key", "source", "score"],
+        "properties": {
+          "topic_key": { "type": "string", "minLength": 1 },
+          "source": { "enum": ["predefined", "model"] },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

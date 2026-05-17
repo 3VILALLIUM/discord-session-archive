@@ -39,12 +39,27 @@ cat -n .githooks/pre-commit
 cat -n .githooks/pre-push
 ```
 
+
+## Clone Helper for macOS + VS Code
+
+Use this script on a Mac to clone a repo and choose where it is saved:
+
+```bash
+bash ./scripts/clone_repo_vscode_mac.sh
+```
+
+Optional non-interactive flags:
+
+```bash
+bash ./scripts/clone_repo_vscode_mac.sh --repo-url https://github.com/3VILALLIUM/discord-audio-transcription.git --parent-dir ~/Code
+```
+
 ## Setup Modes
 
 - Automated setup (recommended): `scripts/bootstrap.ps1` (Windows PowerShell) or `scripts/bootstrap.sh` (bash).
 - Manual setup: explicit commands with no bootstrap script execution.
 
-After setup completes, the repo is ready to run after you set `OPENAI_API_KEY` in `.env` and configure the repo-local Git identity shown below.
+After setup completes, the repo is ready to run after you set `DEEPGRAM_API_KEY` and `DATABASE_URL` in `.env` and configure the repo-local Git identity shown below.
 
 ## Automated Setup (Bootstrap)
 
@@ -111,6 +126,10 @@ Install:
 - Python 3.11+
 - ffmpeg (on `PATH`)
 - Git
+
+Deepgram + Neon dependency note:
+- Python package dependencies are installed from `requirements.lock.txt` during manual setup.
+- Runtime environment values for Deepgram and Neon are configured in `.env`.
 
 Examples (Windows):
 
@@ -185,12 +204,13 @@ bash ./scripts/pr_action_policy_check.sh
 bash ./scripts/privacy_guard_check.sh
 ```
 
-### 6. Set API key
+### 6. Set API and database configuration
 
 Edit `.env`:
 
 ```env
-OPENAI_API_KEY=your_real_key_here
+DEEPGRAM_API_KEY=your_real_key_here
+DATABASE_URL=postgresql://<user>:<password>@<neon-host>/<db>?sslmode=require
 ```
 
 ## Name Replacement Map

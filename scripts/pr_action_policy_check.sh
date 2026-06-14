@@ -29,10 +29,10 @@ required_lines=(
   '- Do not merge a pull request unless the user gives an explicit instruction containing the standalone word `MERGE` for that pull request.'
   '- Do not infer close or merge permission from phrases like "ship it", "looks good", "approved", "done", "superseded", "replace it", "clean up", or "go ahead".'
   '- Do not get clever about this rule. If the exact close or `MERGE` instruction is missing, stop and ask.'
-  '- Before inspecting PR details, reviewing comments, changing labels or branches, closing, merging, or otherwise acting on a pull request, first verify GitHub Copilot code review has completed and has been checked.'
-  '- The only permitted pre-review action is checking whether GitHub Copilot code review has completed.'
+  '- Read-only pull request audits are allowed before Copilot review and may inspect PR metadata, changed files, dependency diffs, check/CI status, labels, reviews, comments, and unresolved thread status.'
+  '- Before commenting, resolving threads, changing labels or metadata, pushing fixes, closing, merging, enabling auto-merge, deleting branches, or otherwise mutating a pull request, first verify GitHub Copilot code review has completed and has been checked.'
   '- Even with explicit close or `MERGE` instruction, do not close or merge pull requests until GitHub Copilot code review has completed and has been checked.'
-  '- If Copilot review is pending, missing, incomplete, or unchecked, do not act on the pull request; wait for review completion and ask the user to proceed once it is complete and checked.'
+  '- If Copilot review is pending, missing, incomplete, or unchecked, limit work to read-only audit and do not mutate the pull request; wait for review completion before PR actions.'
   '- Before merging, read every pull request conversation, review thread, and comment after GitHub Copilot code review has completed.'
   '- Before merging, address every actionable comment with code, docs, tests, or a documented no-change rationale.'
   '- Before merging, reply to every actionable comment with what was done or why no change was made, then resolve the thread only after it has been addressed and replied to.'
@@ -88,7 +88,7 @@ done <<< "$section"
 
 if (( ${#missing[@]} > 0 || ${#forbidden[@]} > 0 || ${#unexpected[@]} > 0 )); then
   echo "ERROR: PR action policy guard failed." >&2
-  echo "AGENTS.md must keep the hard completed-review, conversation, and close/MERGE gates in the PR Review Gate section." >&2
+  echo "AGENTS.md must keep the read-only audit allowance plus hard completed-review, conversation, and close/MERGE gates in the PR Review Gate section." >&2
 
   if (( ${#missing[@]} > 0 )); then
     echo "Missing required lines:" >&2
@@ -108,4 +108,4 @@ if (( ${#missing[@]} > 0 || ${#forbidden[@]} > 0 || ${#unexpected[@]} > 0 )); th
   exit 1
 fi
 
-echo "PR action policy check passed: completed-review, conversation, and close/MERGE gates are present."
+echo "PR action policy check passed: read-only audit allowance plus completed-review, conversation, and close/MERGE gates are present."

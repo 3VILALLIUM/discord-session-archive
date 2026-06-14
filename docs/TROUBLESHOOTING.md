@@ -409,7 +409,8 @@ bash ./scripts/pr_action_policy_check.sh
 ```
 
 Keep `AGENTS.md` aligned with the required PR Review Gate:
-- Copilot code review must be complete and checked before PR action.
+- Read-only PR audits may happen before Copilot review.
+- Copilot code review must be complete and checked before mutating PR actions.
 - Conversations, review threads, and comments must be read before merge.
 - Actionable comments must be addressed, replied to, and resolved before merge.
 - Close requires explicit close instruction.

@@ -353,6 +353,23 @@ def load_name_map(mode: str, profile: Optional[str] = None) -> Dict[str, str]:
                 file=sys.stderr,
             )
         sys.exit(1)
+    if profile is not None:
+        unsafe_profile_path = is_link_or_reparse_point(NAME_MAP_PROFILE_DIR) or is_link_or_reparse_point(
+            map_path
+        )
+        try:
+            resolved_profile_dir = NAME_MAP_PROFILE_DIR.resolve(strict=True)
+            resolved_map_path = map_path.resolve(strict=True)
+            unsafe_profile_path = unsafe_profile_path or resolved_map_path.parent != resolved_profile_dir
+        except (OSError, RuntimeError):
+            unsafe_profile_path = True
+        if unsafe_profile_path:
+            print(
+                f"ERROR: unsafe name map profile path for '{profile}': the profile directory and "
+                "selected file must be regular, contained paths.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
     try:
         payload = json.loads(
             run_with_transient_file_retry(

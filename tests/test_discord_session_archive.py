@@ -448,6 +448,34 @@ def test_load_name_map_selected_profile_uses_profile_path(tmp_path: Path):
     assert mod.load_name_map("replace", "dotmm") == {"speaker one": "Campaign Speaker"}
 
 
+@pytest.mark.parametrize("linked_component", ["directory", "file"])
+def test_selected_profile_rejects_link_or_reparse_before_paid_api(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+    linked_component: str,
+):
+    profile_dir = tmp_path / "config" / "name_maps"
+    profile_path = profile_dir / "dotmm.json"
+    write_json(profile_path, {"speaker one": "Campaign Speaker"})
+    linked_path = profile_dir if linked_component == "directory" else profile_path
+    monkeypatch.setattr(mod, "is_link_or_reparse_point", lambda path: path == linked_path)
+
+    build_calls = {"count": 0}
+
+    def forbidden_build_client(api_key):  # noqa: ARG001
+        build_calls["count"] += 1
+        raise AssertionError("paid API client must not be built")
+
+    monkeypatch.setattr(mod, "build_client", forbidden_build_client)
+
+    with pytest.raises(SystemExit):
+        mod.main(["--name-map-profile", "dotmm"])
+
+    assert build_calls["count"] == 0
+    assert "unsafe name map profile path for 'dotmm'" in capsys.readouterr().err
+
+
 def test_load_name_map_selected_profile_missing_does_not_fallback(capsys):
     with pytest.raises(SystemExit):
         mod.load_name_map("replace", "missing")

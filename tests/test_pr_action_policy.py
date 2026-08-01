@@ -5,6 +5,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
+TROUBLESHOOTING_PATH = REPO_ROOT / "docs" / "TROUBLESHOOTING.md"
 
 COPILOT_PRE_REVIEW_EXCEPTION_LINE = (
     "- The only permitted pre-review actions are checking whether GitHub Copilot code review has completed and, when explicitly directed by the user, requesting or re-requesting GitHub Copilot code review."
@@ -61,11 +62,13 @@ def test_pr_review_gate_requires_explicit_close_and_merge_permission():
 
 def test_pr_review_gate_limits_pre_review_exception_to_user_directed_requests():
     section = _pr_review_gate_section()
+    troubleshooting = TROUBLESHOOTING_PATH.read_text(encoding="utf-8")
 
     pre_review_lines = [line for line in section if "permitted pre-review action" in line]
     assert pre_review_lines == [COPILOT_PRE_REVIEW_EXCEPTION_LINE]
     assert "when explicitly directed by the user" in COPILOT_PRE_REVIEW_EXCEPTION_LINE
     assert "requesting or re-requesting GitHub Copilot code review" in COPILOT_PRE_REVIEW_EXCEPTION_LINE
+    assert "Except for checking review status and explicitly user-directed Copilot review requests or re-requests" in troubleshooting
 
 
 def test_pr_review_gate_does_not_allow_soft_close_or_merge_exceptions():

@@ -1,0 +1,27 @@
+{
+  "job_id": "job_01JV9X6Q8B4M4S8N8M9Q2Y6J7W",
+  "job_type": "transcribe_session",
+  "requested_at_utc": "2026-04-26T22:10:00Z",
+  "session": {
+    "session_uid": "sess_2026_04_26_ab12cd",
+    "source_type": "craig",
+    "info_txt_uri": "s3://raw/craig/sess_2026_04_26_ab12cd/info.txt",
+    "audio_uri": "s3://raw/craig/sess_2026_04_26_ab12cd/audio.wav",
+    "audio_layout": "single_track_mixed",
+    "audio_sha256": "6f3b7a7e4e3b0f9a5c0d8e0d2e8a4f3a6e7d9b2c1a4f6d8e9f0a1b2c3d4e5f6a"
+  },
+  "profile": {
+    "profile_id": "craig_single_track_privacy_v1",
+    "diarization_override": null
+  },
+  "identity_mapping": {
+    "required": true,
+    "mapping_uri": "s3://restricted/identity/sess_2026_04_26_ab12cd/map.json",
+    "chosen_name_policy": "must_exist_or_fallback"
+  },
+  "policy": {
+    "require_mip_opt_out": true,
+    "require_privacy_contract": "1.0.0",
+    "reject_if_policy_violation": true
+  }
+}

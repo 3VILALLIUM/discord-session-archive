@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "default_profile_id": "bad_profile",
+  "profiles": [
+    {
+      "id": "bad_profile",
+      "enabled": true,
+      "source_type": "craig",
+      "audio_layout": "single_track_mixed",
+      "deepgram": {
+        "model": "nova-3",
+        "language": "en",
+        "utterances": true,
+        "diarize": false,
+        "smart_format": true,
+        "punctuate": true,
+        "topics": true,
+        "mip_opt_out": false
+      },
+      "topic_tagging": {
+        "enabled": true,
+        "mode": "hybrid",
+        "predefined_topic_set_id": "core_v1",
+        "max_model_topics": 12,
+        "min_confidence": 0.55
+      },
+      "privacy_contract": {
+        "contract_version": "1.0.0",
+        "strip_guild_name": true,
+        "strip_discord_handles": true,
+        "replace_spoken_names_with_chosen_names": true,
+        "fallback_name_format": "Participant {n}",
+        "block_export_on_any_pii_match": true
+      },
+      "idempotency": {
+        "key_fields": ["session_uid", "audio_sha256", "profile_id", "deepgram.model", "deepgram.diarize"]
+      },
+      "normalizer_version": "2026-04-26.2"
+    }
+  ]
+}

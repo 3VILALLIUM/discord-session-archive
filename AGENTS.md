@@ -30,6 +30,15 @@ Local-only artifacts must never be committed, including:
 2. Never stage or commit secrets (`.env`, keys, PEM files).
 3. Before proposing a commit, run checks listed in "Pre-Commit Safety Checks".
 4. If a requested change conflicts with privacy rules, prioritize privacy.
+5. Final public artifacts must not contain guild names, raw Discord handles, or unreplaced spoken names.
+6. Privacy checks are fail-closed: if privacy validation cannot run or is incomplete, block release actions.
+
+## MIP and Policy Enforcement
+
+1. All Deepgram requests must enforce `mip_opt_out=true`.
+2. Any request path that cannot prove `mip_opt_out=true` is blocked before egress.
+3. Policy checks are fail-closed: missing/invalid policy state must stop processing.
+4. Bypass paths around the policy adapter are forbidden.
 
 ## Identity and Metadata Privacy
 
@@ -50,12 +59,12 @@ Local-only artifacts must never be committed, including:
 3. Do not rewrite project history unless explicitly requested.
 4. Keep docs and commands PowerShell-first.
 5. Keep naming/source references aligned to `discord-session-archive`.
+6. Prefer proven repository behavior and existing scripts before introducing new patterns.
+7. Do not introduce "fancy" solutions when a simpler, proven approach already satisfies requirements.
 
-## Skill Usage
+## PR Creation
 
-1. At the start of every task, check whether there is a relevant available skill for the work being requested.
-2. If a relevant skill exists, use it rather than skipping straight to an ad hoc workflow.
-3. Do not skip an obvious relevant skill just because the task seems familiar; prefer the skill-backed workflow for repeatability and reliability.
+- Do not open or submit a pull request unless the user explicitly requests PR creation for the current task.
 
 ## PR Review Gate
 
@@ -82,6 +91,20 @@ This section is enforced by:
 - `.github/workflows/guard-raw-transcripts.yml`
 - `tests/test_pr_action_policy.py`
 
+## CI and Testing Requirements
+
+1. Required CI checks must be merge-blocking for protected branches.
+2. Never merge or release with failing required CI checks.
+3. New policy/privacy/state-machine/idempotency behavior must include both positive and negative tests.
+4. Any schema change must include fixture updates and regression test updates.
+5. Skipped/xfail tests require explicit rationale in PR notes.
+
+## Skill Usage
+
+1. At the start of every task, check whether there is a relevant available skill for the work being requested.
+2. If a relevant skill exists, use it rather than skipping straight to an ad hoc workflow.
+3. Do not skip an obvious relevant skill just because the task seems familiar; prefer the skill-backed workflow for repeatability and reliability.
+
 ## Pre-Commit Safety Checks
 
 Run these before preparing changes:
@@ -98,6 +121,12 @@ git config --local core.hooksPath
 .\scripts\privacy_guard_check.ps1
 python -m pytest -q
 ```
+
+## Dependency and Change Discipline
+
+1. Do not add dependencies unless necessary to satisfy locked requirements.
+2. For new dependencies, include a short justification and impact note in PR text.
+3. Keep changes narrowly scoped to the stated task.
 
 ## Project Policy
 

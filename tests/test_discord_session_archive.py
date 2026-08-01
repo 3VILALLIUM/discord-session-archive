@@ -82,7 +82,10 @@ def write_json(path: Path, payload):
 def patch_dependencies(monkeypatch, tmp_path: Path):
     map_path = tmp_path / "config" / "name_replace_map.json"
     write_json(map_path, {"speaker one": "Speaker One", "@speaker-one": "Speaker One"})
+    profile_dir = tmp_path / "config" / "name_maps"
+    profile_dir.mkdir()
     monkeypatch.setattr(mod, "NAME_REPLACE_MAP_PATH", map_path)
+    monkeypatch.setattr(mod, "NAME_MAP_PROFILE_DIR", profile_dir)
     monkeypatch.setattr(mod, "check_ffmpeg", lambda: True)
     monkeypatch.setattr(mod, "load_api_key", lambda: "sk-test")
     monkeypatch.setattr(mod, "build_client", lambda api_key: FakeOpenAIClient())
@@ -419,6 +422,114 @@ def test_load_name_map_missing_file_fails(tmp_path: Path, monkeypatch, capsys):
     assert "init_local_config.sh" in err
 
 
+def test_name_map_profile_slug_validation():
+    valid = ["a", "dotmm", "campaign-2", "a" * 64]
+    invalid = [
+        "",
+        "-dotmm",
+        "dotmm-",
+        "DotMM",
+        "dot_mm",
+        "dotmm.json",
+        "../dotmm",
+        "dot/mm",
+        "a" * 65,
+    ]
+
+    assert all(mod.is_valid_name_map_profile(profile) for profile in valid)
+    assert not any(mod.is_valid_name_map_profile(profile) for profile in invalid)
+
+
+def test_load_name_map_selected_profile_uses_profile_path(tmp_path: Path):
+    profile_path = tmp_path / "config" / "name_maps" / "dotmm.json"
+    write_json(profile_path, {"speaker one": "Campaign Speaker"})
+
+    assert mod.map_path_for_mode("replace", "dotmm") == profile_path
+    assert mod.load_name_map("replace", "dotmm") == {"speaker one": "Campaign Speaker"}
+
+
+def test_load_name_map_selected_profile_missing_does_not_fallback(capsys):
+    with pytest.raises(SystemExit):
+        mod.load_name_map("replace", "missing")
+
+    err = capsys.readouterr().err
+    assert "profile 'missing'" in err
+    assert "missing.json" in err
+    assert "Create the selected profile" in err
+    assert "init_local_config.ps1" not in err
+    assert "init_local_config.sh" not in err
+
+
+@pytest.mark.parametrize(
+    ("profile", "contents", "expected_error"),
+    [
+        ("missing", None, "name map file not found"),
+        ("malformed", "{", "failed reading name map file"),
+        (
+            "conflict",
+            '{"Speaker-One": "Alpha", "@speaker_one": "Beta"}',
+            "duplicate normalized key with conflicting values",
+        ),
+    ],
+)
+def test_selected_profile_failures_precede_paid_api_calls(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+    profile: str,
+    contents: str | None,
+    expected_error: str,
+):
+    if contents is not None:
+        profile_path = tmp_path / "config" / "name_maps" / f"{profile}.json"
+        profile_path.write_text(contents, encoding="utf-8")
+
+    build_calls = {"count": 0}
+
+    def forbidden_build_client(api_key):  # noqa: ARG001
+        build_calls["count"] += 1
+        raise AssertionError("paid API client must not be built")
+
+    monkeypatch.setattr(mod, "build_client", forbidden_build_client)
+
+    with pytest.raises(SystemExit):
+        mod.main(["--name-map-profile", profile])
+
+    assert build_calls["count"] == 0
+    assert expected_error in capsys.readouterr().err
+
+
+def test_load_name_map_rejects_profile_with_none(capsys):
+    with pytest.raises(SystemExit):
+        mod.load_name_map("none", "dotmm")
+
+    assert "cannot be combined" in capsys.readouterr().err
+
+
+def test_parse_args_accepts_name_map_profile():
+    args = mod.parse_args(["--name-map-profile", "dotmm"])
+    assert args.name_map_mode == "replace"
+    assert args.name_map_profile == "dotmm"
+
+
+def test_parse_args_rejects_profile_with_none(capsys):
+    with pytest.raises(SystemExit):
+        mod.parse_args(["--name-map-mode", "none", "--name-map-profile", "dotmm"])
+
+    assert "cannot be combined" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "profile",
+    ["../dotmm", "dot/mm", "dotmm.json", "DotMM", "-dotmm", "dotmm-", "a" * 65],
+)
+def test_parse_args_rejects_invalid_name_map_profile(profile: str, capsys):
+    with pytest.raises(SystemExit):
+        mod.parse_args([f"--name-map-profile={profile}"])
+
+    assert "Invalid --name-map-profile" in capsys.readouterr().err
+
+
 def test_parse_craig_info_and_run_id_from_info(tmp_path: Path):
     info = tmp_path / "info.txt"
     info.write_text(
@@ -631,6 +742,163 @@ def test_main_applies_unified_map_to_speaker_metadata_and_body_text(tmp_path: Pa
     assert '  - "Alpha joined late"' in transcript
     assert "[0.00s Alpha] Alpha joined late with Alpha" in transcript
     assert "[1.00s Alpha] Alpha waved at Alpha" in transcript
+
+
+@pytest.mark.parametrize(
+    ("profile", "replacement", "other_replacement"),
+    [
+        ("campaign-one", "Profile Alpha", "Profile Beta"),
+        ("campaign-two", "Profile Beta", "Profile Alpha"),
+    ],
+)
+def test_main_selected_profile_is_campaign_specific_and_privacy_safe(
+    tmp_path: Path,
+    monkeypatch,
+    profile: str,
+    replacement: str,
+    other_replacement: str,
+):
+    class AliasTextClient:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(model, file, response_format, language=None):  # noqa: ARG004
+                    return SimpleNamespace(
+                        language=language or "en",
+                        segments=[
+                            {
+                                "start": 0.0,
+                                "end": 1.0,
+                                "text": "speaker one joined late with @speaker-one",
+                                "avg_logprob": -0.2,
+                                "no_speech_prob": 0.05,
+                                "compression_ratio": 1.0,
+                            }
+                        ],
+                    )
+
+    input_dir = tmp_path / "craig_export"
+    input_dir.mkdir()
+    (input_dir / "speaker_one.mp3").write_bytes(b"a")
+    (input_dir / "info.txt").write_text(
+        "\n".join(
+            [
+                "Guild: Demo Guild",
+                "Start time: 2026-02-13T02:13:52.421Z",
+                "Requester: @speaker-one",
+                "Tracks: speaker_one",
+                "Notes: @speaker-one joined late",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    profile_dir = tmp_path / "config" / "name_maps"
+    profile_paths = {
+        "campaign-one": profile_dir / "campaign-one.json",
+        "campaign-two": profile_dir / "campaign-two.json",
+    }
+    write_json(profile_paths["campaign-one"], {"speaker one": "Profile Alpha"})
+    write_json(profile_paths["campaign-two"], {"speaker one": "Profile Beta"})
+    monkeypatch.setattr(mod, "build_client", lambda api_key: AliasTextClient())
+
+    out_root = tmp_path / "out"
+    mod.main(
+        [
+            "--input",
+            str(input_dir),
+            "--output-root",
+            str(out_root),
+            "--name-map-profile",
+            profile,
+            "--force",
+            "--quiet",
+        ]
+    )
+
+    run_dir = next(out_root.iterdir())
+    transcript = (run_dir / f"{run_dir.name}_transcript.md").read_text(encoding="utf-8")
+    log_text = (run_dir / f"{run_dir.name}_log.md").read_text(encoding="utf-8")
+
+    assert f'requester: "{replacement}"' in transcript
+    assert f'  - "{replacement}"' in transcript
+    assert f'  - "{replacement} joined late"' in transcript
+    assert f"[0.00s {replacement}] {replacement} joined late with {replacement}" in transcript
+    assert other_replacement not in transcript
+    assert "name_map_profile" not in transcript
+    assert profile not in transcript
+
+    assert f"Name map profile: {profile}" in log_text
+    assert "Name map entries loaded: 1" in log_text
+    assert replacement not in log_text
+    assert str(profile_paths[profile]) not in log_text
+
+
+def test_profile_retry_cannot_leak_path_to_previous_run_log(tmp_path: Path, monkeypatch):
+    class FakeAccessError(OSError):
+        def __init__(self):
+            super().__init__("Access is denied")
+            self.winerror = 5
+
+    input_dir = tmp_path / "craig_export"
+    input_dir.mkdir()
+    (input_dir / "speaker_one.mp3").write_bytes(b"a")
+
+    first_out = tmp_path / "first_out"
+    mod.main(
+        [
+            "--input",
+            str(input_dir),
+            "--output-root",
+            str(first_out),
+            "--label",
+            "first-run",
+            "--force",
+            "--quiet",
+        ]
+    )
+    first_run_dir = next(first_out.iterdir())
+    first_log_path = first_run_dir / f"{first_run_dir.name}_log.md"
+
+    profile_path = tmp_path / "config" / "name_maps" / "dotmm.json"
+    write_json(profile_path, {"speaker one": "Campaign Speaker"})
+    original_read_text = Path.read_text
+    calls = {"count": 0}
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self == profile_path:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise FakeAccessError()
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(mod.Path, "read_text", flaky_read_text)
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+
+    second_out = tmp_path / "second_out"
+    try:
+        mod.main(
+            [
+                "--input",
+                str(input_dir),
+                "--output-root",
+                str(second_out),
+                "--label",
+                "second-run",
+                "--name-map-profile",
+                "dotmm",
+                "--force",
+                "--quiet",
+            ]
+        )
+    finally:
+        mod.reset_runtime_logger()
+
+    first_log = first_log_path.read_text(encoding="utf-8")
+    assert calls["count"] == 2
+    assert str(profile_path) not in first_log
+    assert "dotmm.json" not in first_log
+    assert "Name map profile: dotmm" not in first_log
 
 
 def test_main_name_map_mode_none_leaves_body_text_unchanged(tmp_path: Path, monkeypatch):

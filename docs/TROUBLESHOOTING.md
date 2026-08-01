@@ -144,13 +144,40 @@ Fix:
 
 - Use `--name-map-mode replace` for alias replacement.
 - Use `--name-map-mode none` to disable replacements.
-- Edit `_local/config/name_replace_map.json` when using `replace`.
+
+### Invalid `--name-map-profile` value
+
+Cause:
+
+- Profile names must be 1-64 character lowercase slugs containing only letters, numbers, and internal hyphens.
+- Paths, extensions, separators, traversal, uppercase letters, leading hyphens, and trailing hyphens are rejected.
+
+Fix:
+
+Use a slug such as `dotmm`:
+
+```powershell
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-profile dotmm
+```
+
+The command above resolves only `_local/config/name_maps/dotmm.json`.
+
+### Profile combined with `--name-map-mode none`
+
+Cause:
+
+- A profile selects a replacement map, while `none` disables replacement.
+
+Fix:
+
+- Remove `--name-map-profile` to keep names unchanged.
+- Or use `--name-map-mode replace --name-map-profile <profile>`.
 
 ### Name map file missing
 
 Cause:
 
-- `--name-map-mode replace` is active but map file is missing.
+- Replacement mode is active and the exact selected map is missing.
 
 Fix:
 
@@ -162,15 +189,20 @@ Fix:
 bash ./scripts/init_local_config.sh
 ```
 
-Then edit:
+Then edit or create the exact source you intend to use:
 
-- `_local/config/name_replace_map.json`
+- No profile: `_local/config/name_replace_map.json`.
+- Selected profile: `_local/config/name_maps/<profile>.json`.
 
-### Invalid name map JSON
+The initialization scripts create the profile directory but do not create campaign profiles. A selected profile never falls back to the legacy map, and the failure occurs before paid API calls.
+
+### Invalid or conflicting name map JSON
 
 Fix:
 
-- Ensure map is valid JSON object with non-empty string keys/values.
+- Ensure the selected map is a JSON object with non-empty string keys and values.
+- Keys beginning with `__comment` may be used only with string values.
+- Remove aliases that normalize to the same key but map to different values.
 
 Example:
 

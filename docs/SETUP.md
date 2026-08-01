@@ -101,6 +101,7 @@ Bootstrap done state:
 - PR action policy guard passed
 - `.env` exists
 - `_local/config/name_replace_map.json` exists
+- `_local/config/name_maps/` exists
 
 ## Manual Setup (No Bootstrap)
 
@@ -166,10 +167,11 @@ Expected values:
 bash ./scripts/init_local_config.sh
 ```
 
-This creates local-only files if missing:
+This creates local-only files and directories if missing:
 
 - `.env`
 - `_local/config/name_replace_map.json`
+- `_local/config/name_maps/`
 
 ### 5. Run guard checks
 
@@ -193,19 +195,23 @@ Edit `.env`:
 OPENAI_API_KEY=your_real_key_here
 ```
 
-## Name Replacement Map
+## Name Replacement Maps
 
-Use one unified map file:
+Replacement maps use one JSON object whose string keys are Discord handle or spoken-name aliases and whose string values are canonical output names. Keys beginning with `__comment` are ignored.
 
-- `_local/config/name_replace_map.json`
+Runtime selection is deterministic:
 
-The same map handles:
+- `--name-map-mode replace` with no profile reads the legacy `_local/config/name_replace_map.json`.
+- `--name-map-mode replace --name-map-profile dotmm` reads only `_local/config/name_maps/dotmm.json`.
+- `--name-map-mode none` disables all replacement and cannot be combined with a profile.
 
-- Discord handle aliases
-- spoken-name aliases
+Profile names must be 1-64 character lowercase slugs containing only letters, numbers, and internal hyphens. Paths, extensions, separators, uppercase letters, leading hyphens, and trailing hyphens are rejected.
 
-Canonical default for `--name-map-mode` is in the runtime flags table in this document.
-Use `--name-map-mode none` to disable replacements.
+The initialization scripts create `_local/config/name_maps/` but never create campaign profile files or modify an existing legacy map. Create each local-only profile yourself, using the same alias schema as the legacy map.
+
+A missing, malformed, or conflicting selected profile fails before paid API calls. The runtime never falls back from a selected profile to the legacy map.
+
+The selected map covers speaker labels, transcript body text, and Craig metadata. Local run logs record only the selected profile slug and loaded-entry count; map contents and profile paths are not logged, and profile selection is not added to transcript frontmatter.
 
 ## Running the CLI
 
@@ -230,6 +236,7 @@ Runtime flags (canonical from `parse_args`):
 | `--output-root` | `_local/runs` | Changes where run folders are created. | Use when you want transcripts/logs written outside the default `_local/runs` tree. |
 | `--label` | none | Overrides run folder naming with a custom label prefix/safe name. | Use to set a human-readable run label (for example session names or ticket IDs); the final `run_id` will still include an automatic timestamp suffix, so it is identifiable but not fully deterministic. |
 | `--name-map-mode` | `replace` | Controls speaker alias replacement mode: `replace` or `none`. | Use `none` while debugging raw names, or `replace` for normal cleaned names. |
+| `--name-map-profile` | none | Selects `_local/config/name_maps/PROFILE.json` after strict slug validation. | Use for campaign-specific names; it requires replacement mode and never falls back to the legacy map. |
 | `--chunk-sec` | `120` | Sets chunk duration (seconds) for audio splitting before transcription. | Use smaller chunks for responsiveness, or larger chunks to reduce chunk count. |
 | `--overlap-sec` | `5.0` | Sets overlap (seconds) between adjacent chunks. | Increase slightly to reduce boundary clipping; decrease to reduce duplicate overlap text. |
 | `--max-workers` | `min(4, CPU count)` | Per-track chunk worker count (local parallel chunk processing). | Tune when CPU/disk pressure is high or when local chunk prep feels slow. |
@@ -252,6 +259,9 @@ python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --outpu
 
 # Force a specific run label (useful for stable naming)
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --label "campaign-12-session-03"
+
+# Select a campaign-specific local name map
+python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --name-map-profile dotmm
 
 # Preview behavior without writing files
 python .\src\discord_session_archive.py --input "C:\path\to\CraigExport" --dry-run
@@ -327,4 +337,5 @@ You are ready when:
 - the git identity guard for your shell passes (`.\scripts\git_identity_guard.ps1` or `bash ./scripts/git_identity_guard.sh config`)
 - the PR action policy guard for your shell passes (`.\scripts\pr_action_policy_check.ps1` or `bash ./scripts/pr_action_policy_check.sh`)
 - `.env` has real `OPENAI_API_KEY`
+- `_local/config/name_maps/` exists
 - `_local/config/name_replace_map.json` exists

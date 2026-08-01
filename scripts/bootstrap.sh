@@ -251,6 +251,7 @@ show_bootstrap_plan() {
   echo "- local git config update: user.useConfigOnly"
   echo "- create .env if missing"
   echo "- create _local/config/name_replace_map.json if missing"
+  echo "- create _local/config/name_maps/ if missing"
   echo
   if [[ -z "$missing" ]]; then
     echo "Dependency status: all required external dependencies are present."
@@ -452,4 +453,5 @@ echo "1. Set repo-local Git identity:"
 echo "   git config --local user.name \"3VILALLIUM\""
 echo "   git config --local user.email \"128642648+3VILALLIUM@users.noreply.github.com\""
 echo "2. Edit .env and set OPENAI_API_KEY"
-echo "3. Run: python ./src/discord_session_archive.py"
+echo "3. Optionally create _local/config/name_maps/<profile>.json"
+echo "4. Run: python ./src/discord_session_archive.py"

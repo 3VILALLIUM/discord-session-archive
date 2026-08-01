@@ -58,9 +58,13 @@ $pipAuditArgs = @(
     "--require-hashes",
     "--disable-pip",
     "--progress-spinner", "off",
-    "--ignore-vuln", "CVE-2026-3219"
+    "--ignore-vuln", "GHSA-6v7p-g79w-8964",
+    "--ignore-vuln", "CVE-2026-59890"
 )
-# pip 26.0.1 is currently the latest pip release and CVE-2026-3219 has no fixed release yet.
+# GHSA-6v7p-g79w-8964 requires reused msgpack.Unpacker state; this repo's only
+# msgpack path is pip-audit -> CacheControl -> one-shot msgpack.loads.
+# CVE-2026-59890 requires an sdist/MANIFEST.in publishing path, which this repo
+# does not provide. See docs/TROUBLESHOOTING.md for the review conditions.
 Invoke-NativeStep "pip-audit" { & $py @pipAuditArgs }
 
 Invoke-NativeStep "compileall src tests" { & $py -m compileall src tests }

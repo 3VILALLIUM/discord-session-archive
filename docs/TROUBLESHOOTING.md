@@ -427,13 +427,26 @@ git status --short
 .\scripts\privacy_guard_check.ps1
 ```
 
-### `pip-audit` reports `CVE-2026-3219` for `pip`
+### `pip-audit` reports a scoped dependency exception
 
-The Privacy Guard workflow runs dependency checks after the repository privacy guard.
-`pip 26.0.1` is currently the latest pip release, and `CVE-2026-3219` has no fixed release yet.
+The Privacy Guard workflow and `scripts/preflight.ps1` audit
+`requirements.lock.txt` directly and remain fail-closed for every advisory except
+the following statically reviewed cases:
 
-The workflow and `scripts/preflight.ps1` audit `requirements.lock.txt` directly and ignore only this no-fix pip advisory.
-Remove the ignore when pip publishes a fixed release.
+- `GHSA-6v7p-g79w-8964` (`msgpack`): the advisory requires reuse of a streaming
+  `msgpack.Unpacker` after an error. This repository does not construct an
+  `Unpacker`; its only resolved `msgpack` path is
+  `pip-audit -> CacheControl -> msgpack.loads`.
+- `CVE-2026-59890` (`setuptools`): the advisory requires building and publishing
+  an sdist with a non-ASCII `MANIFEST.in` exclusion. This repository has no
+  packaging manifest, `MANIFEST.in`, sdist command, or publication workflow.
+
+Re-evaluate and remove an exception if the corresponding precondition becomes
+part of a supported repository workflow. Any new advisory must fail the audit
+until it is fixed or receives its own evidence-backed exception.
+
+`CVE-2026-3219` is no longer ignored because `requirements.lock.txt` pins
+`pip==26.1.2`; the advisory affects versions before 26.1.
 
 ### `ERROR: git identity does not match repo policy`
 

@@ -7,7 +7,7 @@ Single-run Craig -> whisper-1 -> cleaned transcript pipeline.
 User-facing behavior:
 - One paid transcription pass.
 - One cleaned transcript plus one run log file in _local/runs/<run_id>/
-- Unified name replacement map: _local/config/name_replace_map.json
+- Unified name replacement through the legacy map or a selected local profile.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+from contextlib import suppress
 import shutil
 import sys
 import tempfile
@@ -95,10 +96,12 @@ WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 TRANSIENT_FILE_ACCESS_WINERRORS = {5, 32, 33}
 TRANSIENT_FILE_ACCESS_RETRY_ATTEMPTS = 3
 TRANSIENT_FILE_ACCESS_RETRY_BASE_DELAY_SEC = 0.75
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 NAME_MAP_MODES = ("replace", "none")
 QUALITY_FILTER_MODES = ("balanced", "strict", "off")
 NAME_REPLACE_MAP_PATH = Path("_local/config/name_replace_map.json")
+NAME_MAP_PROFILE_DIR = Path("_local/config/name_maps")
+NAME_MAP_PROFILE_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 LANGUAGE_CODE_RE = re.compile(r"^[a-z]{2,3}(?:-[a-z]{2})?$", flags=re.IGNORECASE)
 LOW_SIGNAL_ONE_WORD_TOKENS = {
     "ah",
@@ -304,32 +307,75 @@ def is_name_map_comment_key(text: str) -> bool:
     return text.strip().lower().startswith("__comment")
 
 
-def map_path_for_mode(mode: str) -> Optional[Path]:
+def is_valid_name_map_profile(profile: str) -> bool:
+    return bool(NAME_MAP_PROFILE_RE.fullmatch(profile))
+
+
+def map_path_for_mode(mode: str, profile: Optional[str] = None) -> Optional[Path]:
     if mode == "replace":
+        if profile is not None:
+            return NAME_MAP_PROFILE_DIR / f"{profile}.json"
         return NAME_REPLACE_MAP_PATH
     if mode == "none":
         return None
     return None
 
 
-def load_name_map(mode: str) -> Dict[str, str]:
-    map_path = map_path_for_mode(mode)
-    if map_path is None:
-        return {}
-    if not map_path.exists():
+def load_name_map(mode: str, profile: Optional[str] = None) -> Dict[str, str]:
+    if mode == "none" and profile is not None:
         print(
-            f"ERROR: name map file not found for mode '{mode}': {map_path}. "
-            "Create it with .\\scripts\\init_local_config.ps1 (PowerShell) or "
-            "bash ./scripts/init_local_config.sh and retry.",
+            "ERROR: a name map profile cannot be combined with name map mode 'none'.",
             file=sys.stderr,
         )
         sys.exit(1)
+    if profile is not None and not is_valid_name_map_profile(profile):
+        print(
+            "ERROR: invalid name map profile. Use a 1-64 character lowercase slug containing "
+            "only letters, numbers, and internal hyphens.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    map_path = map_path_for_mode(mode, profile)
+    if map_path is None:
+        return {}
+    if not map_path.exists():
+        if profile is not None:
+            print(
+                f"ERROR: name map file not found for profile '{profile}': {map_path}. "
+                f"Create the selected profile at {map_path} using the documented JSON alias schema and retry.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"ERROR: name map file not found for mode '{mode}': {map_path}. "
+                "Create it with .\\scripts\\init_local_config.ps1 (PowerShell) or "
+                "bash ./scripts/init_local_config.sh and retry.",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+    if profile is not None:
+        unsafe_profile_path = is_link_or_reparse_point(NAME_MAP_PROFILE_DIR) or is_link_or_reparse_point(
+            map_path
+        )
+        try:
+            resolved_profile_dir = NAME_MAP_PROFILE_DIR.resolve(strict=True)
+            resolved_map_path = map_path.resolve(strict=True)
+            unsafe_profile_path = unsafe_profile_path or resolved_map_path.parent != resolved_profile_dir
+        except (OSError, RuntimeError):
+            unsafe_profile_path = True
+        if unsafe_profile_path:
+            print(
+                f"ERROR: unsafe name map profile path for '{profile}': the profile directory and "
+                "selected file must be regular, contained paths.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
     try:
         payload = json.loads(
             run_with_transient_file_retry(
                 lambda: map_path.read_text(encoding="utf-8-sig"),
                 logger=logging.getLogger("discord_session_archive"),
-                operation=f"Reading name map file {map_path}",
+                operation="Reading name map file",
             )
         )
     except Exception as exc:  # noqa: BLE001
@@ -929,11 +975,18 @@ def check_ffmpeg() -> bool:
     return bool(shutil.which("ffmpeg"))
 
 
-def setup_logger(quiet: bool, log_path: Optional[Path] = None) -> logging.Logger:
+def reset_runtime_logger() -> logging.Logger:
     logger = logging.getLogger("discord_session_archive")
     logger.setLevel(logging.INFO)
     for handler in list(logger.handlers):
         logger.removeHandler(handler)
+        with suppress(Exception):
+            handler.close()
+    return logger
+
+
+def setup_logger(quiet: bool, log_path: Optional[Path] = None) -> logging.Logger:
+    logger = reset_runtime_logger()
 
     if log_path is not None:
         try:
@@ -1711,7 +1764,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--name-map-mode",
         default="replace",
-        help="Name map mode: replace (use _local/config/name_replace_map.json) or none.",
+        help="Name map mode: replace (use a selected profile or the legacy default map) or none.",
+    )
+    parser.add_argument(
+        "--name-map-profile",
+        metavar="PROFILE",
+        help="Select _local/config/name_maps/PROFILE.json using a lowercase slug.",
     )
     parser.add_argument("--chunk-sec", type=int, default=DEFAULT_CHUNK_SEC, help="Chunk duration in seconds.")
     parser.add_argument("--overlap-sec", type=float, default=DEFAULT_OVERLAP_SEC, help="Chunk overlap in seconds.")
@@ -1743,6 +1801,14 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         )
     if args.name_map_mode not in NAME_MAP_MODES:
         parser.error("Invalid --name-map-mode. Supported values are: replace, none.")
+    if args.name_map_profile is not None:
+        if args.name_map_mode == "none":
+            parser.error("--name-map-profile cannot be combined with --name-map-mode none.")
+        if not is_valid_name_map_profile(args.name_map_profile):
+            parser.error(
+                "Invalid --name-map-profile. Use a 1-64 character lowercase slug containing "
+                "only letters, numbers, and internal hyphens."
+            )
 
     for key in ("chunk_sec", "max_workers", "track_workers", "api_workers"):
         if int(getattr(args, key)) < 1:
@@ -1762,6 +1828,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     args = parse_args(argv)
+    reset_runtime_logger()
     if args.version:
         print(f"discord_session_archive {VERSION}")
         return
@@ -1773,7 +1840,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     script_path = Path(__file__).resolve()
     repo_root = find_repo_root(script_path.parent)
     os.chdir(repo_root)
-    name_map = load_name_map(args.name_map_mode)
+    name_map = load_name_map(args.name_map_mode, args.name_map_profile)
 
     input_paths = list(args.input or [])
     if args.pick_folder or not input_paths:
@@ -1821,6 +1888,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         logger.info("Log file: %s", log_path)
     logger.info("Inputs: %d audio file(s)", len(audio_files))
     logger.info("Name map mode: %s", args.name_map_mode)
+    if args.name_map_profile is not None:
+        logger.info("Name map profile: %s", args.name_map_profile)
+    logger.info("Name map entries loaded: %d", len(name_map))
     logger.info("Quality filter: %s", args.quality_filter)
     logger.info("Language mode: %s", args.language)
     logger.info(

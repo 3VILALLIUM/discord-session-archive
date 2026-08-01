@@ -237,6 +237,7 @@ function Show-BootstrapPlan {
     Write-Host "- local git config update: user.useConfigOnly"
     Write-Host "- create .env if missing"
     Write-Host "- create _local/config/name_replace_map.json if missing"
+    Write-Host "- create _local/config/name_maps/ if missing"
     Write-Host ""
     if ($MissingDependencies.Count -eq 0) {
         Write-Host "Dependency status: all required external dependencies are present."
@@ -461,4 +462,5 @@ Write-Host '1. Set repo-local Git identity:'
 Write-Host '   git config --local user.name "3VILALLIUM"'
 Write-Host '   git config --local user.email "128642648+3VILALLIUM@users.noreply.github.com"'
 Write-Host "2. Edit .env and set OPENAI_API_KEY"
-Write-Host "3. Run: python .\src\discord_session_archive.py"
+Write-Host "3. Optionally create _local/config/name_maps/<profile>.json"
+Write-Host "4. Run: python .\src\discord_session_archive.py"

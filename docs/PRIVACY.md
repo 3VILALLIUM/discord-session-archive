@@ -27,7 +27,7 @@ Do not commit:
 - Audio/video files (`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.mp4`, `.ogg`, `.opus`, `.webm`).
 - Logs (`.log`).
 - Secrets (`.env`, `*.key`, `*.pem`).
-- Local identity mapping files (for example `_local/config/name_replace_map.json`).
+- Local identity mapping files (for example `_local/config/name_replace_map.json` and `_local/config/name_maps/*.json`).
 - Generated run artifacts (`<run_id>_transcript.md`, `<run_id>_log.md`) anywhere outside `_local/`.
 
 ## Guardrails
@@ -56,6 +56,8 @@ Generated transcript artifacts may still disclose Craig-derived session metadata
 
 When `--label` is not provided, `run_id` may derive from Craig metadata.
 Run logs may also contain local filesystem paths used for troubleshooting.
+For a selected name-map profile, the local run log records only the profile slug and loaded-entry count, not map contents or the profile path.
+Transcript frontmatter does not record profile selection.
 
 Treat generated transcript and log files as local-sensitive outputs.
 Do not assume they are safe to share manually just because git guardrails are working correctly.

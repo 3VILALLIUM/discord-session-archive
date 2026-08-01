@@ -20,7 +20,7 @@ Flow:
 3. Split each track into overlapping chunks.
 4. Transcribe chunks with OpenAI `whisper-1`.
 5. Merge segments, apply quality filtering, and dedupe overlap artifacts.
-6. Apply unified speaker/name replacement (`name_replace_map.json`).
+6. Apply the selected legacy or campaign-profile name map to speaker labels, transcript text, and Craig metadata.
 7. Write cleaned transcript and run log files.
 
 ## Concurrency Model
@@ -63,14 +63,17 @@ Git guardrails reduce commit risk for these files, but they do not sanitize arti
 
 ## Replacement Map Contract
 
-Runtime supports one map file:
+The replacement mode and optional profile select exactly one local source:
 
-- `_local/config/name_replace_map.json`
+- `replace` without `--name-map-profile` uses `_local/config/name_replace_map.json`.
+- `replace --name-map-profile PROFILE` uses `_local/config/name_maps/PROFILE.json`.
+- `none` performs no replacement and cannot be combined with a profile.
 
-`--name-map-mode` supports:
+Profile slugs must match `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`. This prevents extensions, separators, traversal, uppercase names, and other path selection.
 
-- `replace`
-- `none`
+Selected profiles use the existing JSON alias schema. Missing files, malformed JSON, non-string or empty entries, and conflicting normalized aliases fail before the API client is built. A selected profile never falls back to the legacy map.
+
+The run log records only the profile slug and loaded-entry count. It never records map contents or the profile path, and transcript frontmatter does not record profile selection.
 
 ## Testing Surface
 

@@ -27,7 +27,9 @@ Do not include sensitive details in public channels.
 ## Dependency Update Policy
 
 Routine Dependabot version-update PRs are disabled to reduce maintenance noise.
-Security alerts and security-update signals remain the preferred trigger for dependency work.
+Automatic Dependabot security-update PRs are also disabled. Dependabot alerts and
+the fail-closed `pip-audit` check remain enabled as the preferred triggers for
+manual dependency review.
 
 Accept dependency updates when they:
 - address a security advisory affecting the locked dependency set,
@@ -36,6 +38,11 @@ Accept dependency updates when they:
 - provide a clear functionality gain for this tool.
 
 Defer routine "new version available" updates when there is no repo-specific justification.
+
+When static evidence proves that an advisory's vulnerable code path is absent,
+record a narrowly scoped `pip-audit` exception with its rationale and dismiss the
+matching Dependabot alert with the same rationale. Do not change dependency
+versions solely to silence a non-applicable advisory.
 
 ## Intended Use
 

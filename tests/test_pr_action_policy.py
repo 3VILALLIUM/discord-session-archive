@@ -1,10 +1,15 @@
-"""Repository policy invariants for pull request close and merge actions."""
+"""Repository policy invariants for pull request review, close, and merge actions."""
 
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
+TROUBLESHOOTING_PATH = REPO_ROOT / "docs" / "TROUBLESHOOTING.md"
+
+COPILOT_PRE_REVIEW_EXCEPTION_LINE = (
+    "- The only permitted pre-review actions are checking whether GitHub Copilot code review has completed and, when explicitly directed by the user, requesting or re-requesting GitHub Copilot code review."
+)
 
 REQUIRED_PR_REVIEW_GATE_LINES = (
     "- Closing and merging pull requests are separate, explicit user-authorized actions, never routine cleanup.",
@@ -13,9 +18,9 @@ REQUIRED_PR_REVIEW_GATE_LINES = (
     '- Do not infer close or merge permission from phrases like "ship it", "looks good", "approved", "done", "superseded", "replace it", "clean up", or "go ahead".',
     "- Do not get clever about this rule. If the exact close or `MERGE` instruction is missing, stop and ask.",
     "- Before inspecting PR details, reviewing comments, changing labels or branches, closing, merging, or otherwise acting on a pull request, first verify GitHub Copilot code review has completed and has been checked.",
-    "- The only permitted pre-review action is checking whether GitHub Copilot code review has completed.",
+    COPILOT_PRE_REVIEW_EXCEPTION_LINE,
     "- Even with explicit close or `MERGE` instruction, do not close or merge pull requests until GitHub Copilot code review has completed and has been checked.",
-    "- If Copilot review is pending, missing, incomplete, or unchecked, do not act on the pull request; wait for review completion and ask the user to proceed once it is complete and checked.",
+    "- If Copilot review is pending, missing, incomplete, or unchecked, do not take any other pull request action; use only the explicit status-check and review-request exceptions above, otherwise wait for review completion and ask the user to proceed once it is complete and checked.",
     "- Before merging, read every pull request conversation, review thread, and comment after GitHub Copilot code review has completed.",
     "- Before merging, address every actionable comment with code, docs, tests, or a documented no-change rationale.",
     "- Before merging, reply to every actionable comment with what was done or why no change was made, then resolve the thread only after it has been addressed and replied to.",
@@ -53,6 +58,17 @@ def test_pr_review_gate_requires_explicit_close_and_merge_permission():
 
     missing = [line for line in REQUIRED_PR_REVIEW_GATE_LINES if line not in section]
     assert missing == []
+
+
+def test_pr_review_gate_limits_pre_review_exception_to_user_directed_requests():
+    section = _pr_review_gate_section()
+    troubleshooting = TROUBLESHOOTING_PATH.read_text(encoding="utf-8")
+
+    pre_review_lines = [line for line in section if "permitted pre-review action" in line]
+    assert pre_review_lines == [COPILOT_PRE_REVIEW_EXCEPTION_LINE]
+    assert "when explicitly directed by the user" in COPILOT_PRE_REVIEW_EXCEPTION_LINE
+    assert "requesting or re-requesting GitHub Copilot code review" in COPILOT_PRE_REVIEW_EXCEPTION_LINE
+    assert "Except for checking review status and explicitly user-directed Copilot review requests or re-requests" in troubleshooting
 
 
 def test_pr_review_gate_does_not_allow_soft_close_or_merge_exceptions():

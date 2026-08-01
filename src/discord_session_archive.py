@@ -375,7 +375,7 @@ def load_name_map(mode: str, profile: Optional[str] = None) -> Dict[str, str]:
             run_with_transient_file_retry(
                 lambda: map_path.read_text(encoding="utf-8-sig"),
                 logger=logging.getLogger("discord_session_archive"),
-                operation=f"Reading name map file {map_path}",
+                operation="Reading name map file",
             )
         )
     except Exception as exc:  # noqa: BLE001

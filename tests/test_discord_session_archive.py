@@ -862,7 +862,7 @@ def test_main_selected_profile_is_campaign_specific_and_privacy_safe(
     assert str(profile_paths[profile]) not in log_text
 
 
-def test_profile_retry_cannot_leak_path_to_previous_run_log(tmp_path: Path, monkeypatch):
+def test_profile_retry_cannot_leak_path_to_previous_run_log(tmp_path: Path, monkeypatch, caplog):
     class FakeAccessError(OSError):
         def __init__(self):
             super().__init__("Access is denied")
@@ -927,6 +927,7 @@ def test_profile_retry_cannot_leak_path_to_previous_run_log(tmp_path: Path, monk
     assert str(profile_path) not in first_log
     assert "dotmm.json" not in first_log
     assert "Name map profile: dotmm" not in first_log
+    assert str(profile_path) not in caplog.text
 
 
 def test_main_name_map_mode_none_leaves_body_text_unchanged(tmp_path: Path, monkeypatch):
